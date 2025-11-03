@@ -1,0 +1,33 @@
+{
+  "name": "context-deps",
+  "version": "1.0.0",
+  "description": "A TypeScript CLI tool for managing context dependencies",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "typescript",
+    "cli",
+    "dependencies",
+    "context"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "glob": "^10.3.10",
+    "node-fetch": "^3.3.2",
+    "semver": "^7.5.4"
+  },
+  "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.52.5",
+    "@types/node": "^20.10.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  }
+}
