@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "clipboardy": "^5.0.0",
     "commander": "^11.1.0",
     "glob": "^10.3.10",
     "node-fetch": "^3.3.2",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.52.5",
     "@types/node": "^20.10.5",
+    "@types/semver": "^7.7.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "vitest": "^1.0.4"

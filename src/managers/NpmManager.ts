@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import semver from 'semver';
 import { DependencyManager, AnalysisReport, DependencyInfo } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
 
@@ -98,11 +99,62 @@ export class NpmManager implements DependencyManager {
       allDependencies.push(dependencyInfo);
     }
     
+    // Step 6: Core Analysis Logic - Categorize dependencies
+    const safe: DependencyInfo[] = [];
+    const blocked: (DependencyInfo & { blocker: string })[] = [];
+    const majorJump: DependencyInfo[] = [];
+    
+    // Create a Map from allDependencies for fast lookups by package name
+    const dependenciesMap = new Map<string, DependencyInfo>();
+    for (const dep of allDependencies) {
+      dependenciesMap.set(dep.name, dep);
+    }
+    
+    // Loop through each dependency and perform analysis
+    for (const dep of allDependencies) {
+      // Step 4: Blocker Check
+      let blockerName: string | null = null;
+      
+      // Iterate through all other packages to find potential blockers
+      for (const potentialBlocker of allDependencies) {
+        // Skip if it's the same package
+        if (potentialBlocker.name === dep.name) continue;
+        
+        // Check if potentialBlocker has a dependency on dep.name
+        const requiredRange = potentialBlocker.dependencies[dep.name];
+        if (requiredRange) {
+          // Check if the current version satisfies the required range
+          if (dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
+            blockerName = potentialBlocker.name;
+            break; // Found a blocker, stop searching
+          }
+        }
+      }
+      
+      // Step 5: Classification Logic
+      if (blockerName) {
+        // Package is blocked by another package
+        blocked.push({
+          ...dep,
+          blocker: blockerName
+        });
+      } else if (dep.latest === 'unknown' || semver.gte(dep.resolved, dep.latest)) {
+        // Package is already at latest version or we can't verify it - do nothing
+        continue;
+      } else if (semver.major(dep.resolved) < semver.major(dep.latest)) {
+        // Major version jump required
+        majorJump.push(dep);
+      } else {
+        // Safe minor or patch upgrade
+        safe.push(dep);
+      }
+    }
+    
     // Return the analysis report
     return {
-      safe: [],
-      blocked: [],
-      majorJump: [],
+      safe,
+      blocked,
+      majorJump,
       allDependencies
     };
   }
