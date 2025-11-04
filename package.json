@@ -19,14 +19,14 @@
   "license": "MIT",
   "dependencies": {
     "clipboardy": "^5.0.0",
-    "commander": "^11.1.0",
-    "glob": "^10.3.10",
+    "commander": "^14.0.0",
+    "glob": "^11.0.0",
     "node-fetch": "^3.3.2",
     "semver": "^7.5.4"
   },
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.52.5",
-    "@types/node": "^20.10.5",
+    "@types/node": "^24.1.0",
     "@types/semver": "^7.7.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
