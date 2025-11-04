@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import semver from 'semver';
-import { DependencyManager, AnalysisReport, DependencyInfo } from './types.js';
+import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
 
 /**
@@ -51,7 +51,7 @@ export class NpmManager implements DependencyManager {
    * @param directory - The directory containing the npm project
    * @returns Promise<AnalysisReport> - Complete analysis report with dependency information
    */
-  async analyze(directory: string): Promise<AnalysisReport> {
+  async analyze(directory: string, onProgress?: ProgressCallbacks): Promise<AnalysisReport> {
     // Step 1: Find and read files
     const packageJsonPath = `${directory}/package.json`;
     const packageLockPath = `${directory}/package-lock.json`;
@@ -75,8 +75,14 @@ export class NpmManager implements DependencyManager {
     
     const uniquePackageNames = [...new Set(packageNames)];
     
+    // Initialize progress tracking
+    onProgress?.start(uniquePackageNames.length, 'Fetching latest versions');
+    
     // Step 4: Fetch latest versions
-    const latestVersions = await fetchLatestVersions(uniquePackageNames);
+    const latestVersions = await fetchLatestVersions(uniquePackageNames, onProgress?.increment);
+    
+    // Stop progress tracking
+    onProgress?.stop();
     
     // Step 5: Create a Map of ALL packages for blocker detection
     const allPackagesMap = new Map<string, DependencyInfo>();
