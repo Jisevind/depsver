@@ -8,6 +8,15 @@ export function formatReport(report: AnalysisReport): string {
   
   // Section 1: Actionable Insights
   markdown += '### 1. Actionable Insights\n\n';
+
+  // No Updates Needed
+  if (
+    report.safe.length === 0 &&
+    report.blocked.length === 0 &&
+    report.majorJump.length === 0
+  ) {
+    markdown += '✅ All your top-level dependencies are up-to-date. Great job!\n\n';
+  }
   
   // Safe to Upgrade
   if (report.safe.length > 0) {
