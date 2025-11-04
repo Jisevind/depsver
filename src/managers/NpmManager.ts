@@ -4,6 +4,18 @@ import { DependencyManager, AnalysisReport, DependencyInfo } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
 
 /**
+ * Extracts the package name from a package-lock.json path.
+ * e.g., "node_modules/react" -> "react"
+ * e.g., "node_modules/clipboardy/node_modules/execa" -> "execa"
+ * e.g., "node_modules/@types/node" -> "@types/node"
+ */
+function extractPackageName(packagePath: string): string {
+  const parts = packagePath.split('node_modules/');
+  // The last part will always be the package name
+  return parts[parts.length - 1] || '';
+}
+
+/**
  * NpmManager implements the DependencyManager interface for npm-based projects.
  * It detects and analyzes npm dependencies by examining package.json and package-lock.json files.
  */
@@ -59,35 +71,26 @@ export class NpmManager implements DependencyManager {
     // Step 3: Get unique package names from package-lock.json
     const packageNames = Object.keys(packageLock.packages)
       .filter(key => key !== "") // Skip root package
-      .map(key => {
-        // Extract package name from node_modules/path
-        if (key.startsWith("node_modules/")) {
-          return key.replace("node_modules/", "");
-        }
-        return key;
-      });
+      .map(key => extractPackageName(key));
     
     const uniquePackageNames = [...new Set(packageNames)];
     
     // Step 4: Fetch latest versions
     const latestVersions = await fetchLatestVersions(uniquePackageNames);
     
-    // Step 5: Populate allDependencies
-    const allDependencies: DependencyInfo[] = [];
+    // Step 5: Create a Map of ALL packages for blocker detection
+    const allPackagesMap = new Map<string, DependencyInfo>();
     
     for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
       if (packagePath === "") continue; // Skip root package
       
       // Extract package name from path
-      let packageName = packagePath;
-      if (packagePath.startsWith("node_modules/")) {
-        packageName = packagePath.replace("node_modules/", "");
-      }
+      const packageName = extractPackageName(packagePath);
       
       // Type assertion for packageInfo
       const pkgInfo = packageInfo as any;
       
-      // Create dependency info
+      // Create dependency info for ALL packages (needed for blocker detection)
       const dependencyInfo: DependencyInfo = {
         name: packageName,
         requested: requestedDependencies[packageName] || undefined,
@@ -96,36 +99,47 @@ export class NpmManager implements DependencyManager {
         dependencies: pkgInfo.dependencies || {}
       };
       
-      allDependencies.push(dependencyInfo);
+      allPackagesMap.set(packageName, dependencyInfo);
     }
     
-    // Step 6: Core Analysis Logic - Categorize dependencies
+    // Step 6: Populate allDependencies - only for top-level dependencies
+    const allDependencies: DependencyInfo[] = [];
+    
+    for (const depName of Object.keys(requestedDependencies)) {
+      const dep = allPackagesMap.get(depName);
+      if (dep) {
+        allDependencies.push(dep);
+      }
+    }
+    
+    // Step 7: Core Analysis Logic - Categorize dependencies
     const safe: DependencyInfo[] = [];
     const blocked: (DependencyInfo & { blocker: string })[] = [];
     const majorJump: DependencyInfo[] = [];
     
-    // Create a Map from allDependencies for fast lookups by package name
-    const dependenciesMap = new Map<string, DependencyInfo>();
-    for (const dep of allDependencies) {
-      dependenciesMap.set(dep.name, dep);
-    }
-    
-    // Loop through each dependency and perform analysis
-    for (const dep of allDependencies) {
+    // Analyze only the top-level dependencies from package.json
+    for (const depName of Object.keys(requestedDependencies)) {
+      const dep = allPackagesMap.get(depName);
+
+      // Skip if this dependency isn't in the lockfile for some reason
+      if (!dep) {
+        continue;
+      }
+
       // Step 4: Blocker Check
       let blockerName: string | null = null;
       
-      // Iterate through all other packages to find potential blockers
-      for (const potentialBlocker of allDependencies) {
+      // Iterate through ALL packages to find potential blockers
+      for (const [potentialBlockerName, potentialBlocker] of allPackagesMap) {
         // Skip if it's the same package
-        if (potentialBlocker.name === dep.name) continue;
+        if (potentialBlockerName === dep.name) continue;
         
         // Check if potentialBlocker has a dependency on dep.name
         const requiredRange = potentialBlocker.dependencies[dep.name];
         if (requiredRange) {
           // Check if the current version satisfies the required range
           if (dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
-            blockerName = potentialBlocker.name;
+            blockerName = potentialBlockerName;
             break; // Found a blocker, stop searching
           }
         }

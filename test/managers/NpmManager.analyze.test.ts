@@ -97,8 +97,8 @@ describe('NpmManager.analyze', () => {
     expect(result).toHaveProperty('majorJump');
     expect(result).toHaveProperty('allDependencies');
     
-    // Verify allDependencies
-    expect(result.allDependencies).toHaveLength(5);
+    // Verify allDependencies - now only top-level dependencies
+    expect(result.allDependencies).toHaveLength(3);
     
     // Check specific dependencies
     const reactDep = result.allDependencies.find(dep => dep.name === 'react');
@@ -121,13 +121,7 @@ describe('NpmManager.analyze', () => {
     expect(typescriptDep?.resolved).toBe('5.3.3');
     expect(typescriptDep?.latest).toBe('5.4.5');
     
-    const looseEnvifyDep = result.allDependencies.find(dep => dep.name === 'loose-envify');
-    expect(looseEnvifyDep).toBeDefined();
-    expect(looseEnvifyDep?.requested).toBeUndefined(); // Not in package.json
-    expect(looseEnvifyDep?.resolved).toBe('1.4.0');
-    expect(looseEnvifyDep?.latest).toBe('1.6.0');
-    
-    // NEW: Verify classification logic
+    // NEW: Verify classification logic - only top-level dependencies are analyzed
     expect(result.blocked).toHaveLength(1);
     const blockedReact = result.blocked.find(dep => dep.name === 'react');
     expect(blockedReact).toBeDefined();
@@ -137,13 +131,7 @@ describe('NpmManager.analyze', () => {
     const majorJumpLodash = result.majorJump.find(dep => dep.name === 'lodash');
     expect(majorJumpLodash).toBeDefined();
     
-    expect(result.safe).toHaveLength(3);
-    const safeLooseEnvify = result.safe.find(dep => dep.name === 'loose-envify');
-    expect(safeLooseEnvify).toBeDefined();
-    
-    const safeOldUiKit = result.safe.find(dep => dep.name === 'old-ui-kit');
-    expect(safeOldUiKit).toBeDefined();
-    
+    expect(result.safe).toHaveLength(1);
     const safeTypescript = result.safe.find(dep => dep.name === 'typescript');
     expect(safeTypescript).toBeDefined();
   });

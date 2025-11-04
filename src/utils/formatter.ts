@@ -39,6 +39,13 @@ export function formatReport(report: AnalysisReport): string {
     markdown += '\n';
   }
   
+  // Add this right after Section 1's code block
+  const topLevelNames = new Set(
+    report.allDependencies
+      .filter(dep => dep.requested)
+      .map(dep => dep.name)
+  );
+  
   // Section 2: Project Dependencies (from package.json)
   markdown += '### 2. Project Dependencies (from package.json)\n';
   const requestedDeps = new Map<string, string>();
@@ -65,6 +72,8 @@ export function formatReport(report: AnalysisReport): string {
   const sortedAllDeps = [...report.allDependencies].sort((a, b) => a.name.localeCompare(b.name));
   
   for (const dep of sortedAllDeps) {
+    if (!topLevelNames.has(dep.name)) continue;
+    
     markdown += `* **${dep.name}**: ${dep.resolved}\n`;
     
     if (dep.dependencies && Object.keys(dep.dependencies).length > 0) {
@@ -86,6 +95,8 @@ export function formatReport(report: AnalysisReport): string {
     .sort((a, b) => a.name.localeCompare(b.name));
   
   for (const dep of sortedLatest) {
+    if (!topLevelNames.has(dep.name)) continue;
+    
     markdown += `* **${dep.name}**: ${dep.latest}\n`;
   }
   
