@@ -1,4 +1,4 @@
-# Context-Deps
+# Depsver
 
 > **⚠️ Disclaimer**: This tool provides guidance and analysis for dependency management, but all dependency updates should be thoroughly tested in your specific environment before applying to production. Always review breaking changes and test updates in a development environment first.
 
@@ -18,20 +18,20 @@ A TypeScript CLI tool for analyzing project dependencies and generating AI-ready
 ### Global Installation
 
 ```bash
-npm install -g context-deps
+npm install -g depsver
 ```
 
 ### Local Installation
 
 ```bash
-npm install --save-dev context-deps
+npm install --save-dev depsver
 ```
 
 ### Build from Source
 
 ```bash
 git clone <repository-url>
-cd context-deps
+cd depsver
 npm install
 npm run build
 ```
@@ -43,13 +43,13 @@ npm run build
 Analyze the current directory:
 
 ```bash
-context-deps
+depsver
 ```
 
 Analyze a specific directory:
 
 ```bash
-context-deps /path/to/your/project
+depsver /path/to/your/project
 ```
 
 ### Output Options
@@ -57,19 +57,19 @@ context-deps /path/to/your/project
 Save report to a file:
 
 ```bash
-context-deps -o dependency-report.md
+depsver -o dependency-report.md
 ```
 
 Copy report to clipboard:
 
 ```bash
-context-deps --clip
+depsver --clip
 ```
 
 ### Help
 
 ```bash
-context-deps --help
+depsver --help
 ```
 
 ## Report Sections

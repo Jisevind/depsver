@@ -11,7 +11,7 @@ import { formatReport, formatActionableInsights, formatActionableInsightsConsole
 const program = new Command();
 
 program
-  .name('context-deps')
+  .name('depsver')
   .description('Analyzes project dependencies and generates an AI-ready report')
   .version('1.0.0')
   .argument('[path]', 'directory to analyze', '.')

@@ -1,5 +1,5 @@
 {
-  "name": "context-deps",
+  "name": "depsver",
   "version": "0.1.0",
   "description": "A TypeScript CLI tool for managing context dependencies",
   "type": "module",
