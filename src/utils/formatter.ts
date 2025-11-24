@@ -33,7 +33,8 @@ export function formatReport(report: AnalysisReport): string {
     for (const dep of report.blocked) {
       // Find the blocker package to get the required version
       const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
-      const requiredVersion = blockerPackage?.dependencies[dep.name] || 'unknown';
+      const requiredVersion = blockerPackage?.dependencies[dep.name] ||
+                             blockerPackage?.peerDependencies[dep.name] || 'unknown';
       markdown += `    * \`${dep.name}\` (Latest: ${dep.latest}) is **blocked** by \`${dep.blocker}\` (requires \`${dep.name}@${requiredVersion}\`).\n`;
     }
     markdown += '\n';

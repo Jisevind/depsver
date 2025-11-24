@@ -5,6 +5,7 @@ export interface DependencyInfo {
   resolved: string;
   latest: string;
   dependencies: Record<string, string>;
+  peerDependencies: Record<string, string>;
 }
 
 export interface AnalysisReport {

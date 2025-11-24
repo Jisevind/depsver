@@ -107,6 +107,7 @@ describe('NpmManager.analyze', () => {
     expect(reactDep?.resolved).toBe('18.2.0');
     expect(reactDep?.latest).toBe('18.3.0');
     expect(reactDep?.dependencies).toEqual({ 'loose-envify': '^1.1.0' });
+    expect(reactDep?.peerDependencies).toEqual({});
     
     const lodashDep = result.allDependencies.find(dep => dep.name === 'lodash');
     expect(lodashDep).toBeDefined();
@@ -114,12 +115,15 @@ describe('NpmManager.analyze', () => {
     expect(lodashDep?.resolved).toBe('4.1.0');
     expect(lodashDep?.latest).toBe('5.0.0');
     expect(lodashDep?.dependencies).toEqual({});
+    expect(lodashDep?.peerDependencies).toEqual({});
     
     const typescriptDep = result.allDependencies.find(dep => dep.name === 'typescript');
     expect(typescriptDep).toBeDefined();
     expect(typescriptDep?.requested).toBe('^5.0.0');
     expect(typescriptDep?.resolved).toBe('5.3.3');
     expect(typescriptDep?.latest).toBe('5.4.5');
+    expect(typescriptDep?.dependencies).toEqual({});
+    expect(typescriptDep?.peerDependencies).toEqual({});
     
     // NEW: Verify classification logic - only top-level dependencies are analyzed
     expect(result.blocked).toHaveLength(1);
@@ -182,5 +186,68 @@ describe('NpmManager.analyze', () => {
     expect(nodeTypesDep?.requested).toBe('^20.0.0');
     expect(nodeTypesDep?.resolved).toBe('20.10.5');
     expect(nodeTypesDep?.latest).toBe('20.19.24');
+    expect(nodeTypesDep?.dependencies).toEqual({});
+    expect(nodeTypesDep?.peerDependencies).toEqual({});
+  });
+
+  it('should detect blockers from peer dependencies', async () => {
+    // Mock package.json content
+    const packageJsonContent = JSON.stringify({
+      dependencies: {
+        "onnxruntime-web": "1.21.0",
+        "@imgly/background-removal": "^1.7.0"
+      }
+    });
+    
+    // Mock package-lock.json content with peer dependency scenario
+    const packageLockContent = JSON.stringify({
+      packages: {
+        "": {
+          name: "test-project",
+          version: "1.0.0"
+        },
+        "node_modules/onnxruntime-web": {
+          version: "1.21.0"
+        },
+        "node_modules/@imgly/background-removal": {
+          version: "1.7.0",
+          peerDependencies: {
+            "onnxruntime-web": "1.21.0"
+          }
+        }
+      }
+    });
+    
+    // Mock file reading
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('package.json')) {
+        return Promise.resolve(packageJsonContent);
+      }
+      if (path.includes('package-lock.json')) {
+        return Promise.resolve(packageLockContent);
+      }
+      return Promise.reject(new Error('File not found'));
+    });
+    
+    // Mock fetchLatestVersions - onnxruntime-web has newer version available
+    mockFetchLatestVersions.mockResolvedValue(new Map([
+      ['onnxruntime-web', '1.23.2'],      // Newer version available
+      ['@imgly/background-removal', '1.7.1']
+    ]));
+    
+    const result = await manager.analyze('.');
+    
+    // Verify that onnxruntime-web is blocked by @imgly/background-removal's peer dependency
+    expect(result.blocked).toHaveLength(1);
+    const blockedOnnx = result.blocked.find(dep => dep.name === 'onnxruntime-web');
+    expect(blockedOnnx).toBeDefined();
+    expect(blockedOnnx?.blocker).toBe('@imgly/background-removal');
+    expect(blockedOnnx?.resolved).toBe('1.21.0');
+    expect(blockedOnnx?.latest).toBe('1.23.2');
+    
+    // Verify peer dependencies are captured
+    const imglyDep = result.allDependencies.find(dep => dep.name === '@imgly/background-removal');
+    expect(imglyDep).toBeDefined();
+    expect(imglyDep?.peerDependencies).toEqual({ 'onnxruntime-web': '1.21.0' });
   });
 });

@@ -102,7 +102,8 @@ export class NpmManager implements DependencyManager {
         requested: requestedDependencies[packageName] || undefined,
         resolved: pkgInfo.version,
         latest: latestVersions.get(packageName) || "unknown",
-        dependencies: pkgInfo.dependencies || {}
+        dependencies: pkgInfo.dependencies || {},
+        peerDependencies: pkgInfo.peerDependencies || {}
       };
       
       allPackagesMap.set(packageName, dependencyInfo);
@@ -140,8 +141,9 @@ export class NpmManager implements DependencyManager {
         // Skip if it's the same package
         if (potentialBlockerName === dep.name) continue;
         
-        // Check if potentialBlocker has a dependency on dep.name
-        const requiredRange = potentialBlocker.dependencies[dep.name];
+        // Check if potentialBlocker has a dependency on dep.name (either regular or peer)
+        const requiredRange = potentialBlocker.dependencies[dep.name] ||
+                             potentialBlocker.peerDependencies[dep.name];
         if (requiredRange) {
           // Check if the current version satisfies the required range
           if (dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
