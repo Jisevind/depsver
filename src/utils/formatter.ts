@@ -112,3 +112,101 @@ export function formatReport(report: AnalysisReport): string {
   
   return markdown;
 }
+
+/**
+ * Formats just the Actionable Insights section from an AnalysisReport
+ */
+export function formatActionableInsights(report: AnalysisReport): string {
+  let markdown = '### 1. Actionable Insights\n\n';
+
+  // No Updates Needed
+  if (
+    report.safe.length === 0 &&
+    report.blocked.length === 0 &&
+    report.majorJump.length === 0
+  ) {
+    markdown += '✅ All your top-level dependencies are up-to-date. Great job!\n\n';
+  }
+  
+  // Safe to Upgrade
+  if (report.safe.length > 0) {
+    markdown += '* **✅ Safe to Upgrade:**\n';
+    for (const dep of report.safe) {
+      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest})\n`;
+    }
+    markdown += '\n';
+  }
+  
+  // Blocked Upgrades
+  if (report.blocked.length > 0) {
+    markdown += '* **⚠️ Blocked Upgrades:**\n';
+    for (const dep of report.blocked) {
+      // Find the blocker package to get the required version
+      const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
+      const requiredVersion = blockerPackage?.dependencies[dep.name] ||
+                             blockerPackage?.peerDependencies[dep.name] || 'unknown';
+      markdown += `    * \`${dep.name}\` (Latest: ${dep.latest}) is **blocked** by \`${dep.blocker}\` (requires \`${dep.name}@${requiredVersion}\`).\n`;
+    }
+    markdown += '\n';
+  }
+  
+  // Major Version Jumps
+  if (report.majorJump.length > 0) {
+    markdown += '* **⬆️ Major Version Jumps (Review Required):**\n';
+    for (const dep of report.majorJump) {
+      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
+    }
+    markdown += '\n';
+  }
+
+  return markdown;
+}
+
+/**
+ * Formats just the Actionable Insights section from an AnalysisReport for console output (plain text, no markdown)
+ */
+export function formatActionableInsightsConsole(report: AnalysisReport): string {
+  let output = 'Actionable Insights:\n\n';
+
+  // No Updates Needed
+  if (
+    report.safe.length === 0 &&
+    report.blocked.length === 0 &&
+    report.majorJump.length === 0
+  ) {
+    output += 'All your top-level dependencies are up-to-date. Great job!\n\n';
+  }
+  
+  // Safe to Upgrade
+  if (report.safe.length > 0) {
+    output += 'Safe to Upgrade:\n';
+    for (const dep of report.safe) {
+      output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest})\n`;
+    }
+    output += '\n';
+  }
+  
+  // Blocked Upgrades
+  if (report.blocked.length > 0) {
+    output += 'Blocked Upgrades:\n';
+    for (const dep of report.blocked) {
+      // Find the blocker package to get the required version
+      const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
+      const requiredVersion = blockerPackage?.dependencies[dep.name] ||
+                             blockerPackage?.peerDependencies[dep.name] || 'unknown';
+      output += `    - ${dep.name} (Latest: ${dep.latest}) is blocked by ${dep.blocker} (requires ${dep.name}@${requiredVersion}).\n`;
+    }
+    output += '\n';
+  }
+  
+  // Major Version Jumps
+  if (report.majorJump.length > 0) {
+    output += 'Major Version Jumps (Review Required):\n';
+    for (const dep of report.majorJump) {
+      output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
+    }
+    output += '\n';
+  }
+
+  return output;
+}

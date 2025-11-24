@@ -6,7 +6,7 @@ import path from 'path';
 import clipboardy from 'clipboardy';
 import cliProgress from 'cli-progress';
 import { NpmManager } from './managers/NpmManager.js';
-import { formatReport } from './utils/formatter.js';
+import { formatReport, formatActionableInsights, formatActionableInsightsConsole } from './utils/formatter.js';
 
 const program = new Command();
 
@@ -65,6 +65,11 @@ program
         await clipboardy.write(markdownReport);
         console.log('Report copied to clipboard!');
       } else if (options.output) {
+        // Display Actionable Insights to console (plain text format)
+        const actionableInsightsConsole = formatActionableInsightsConsole(report);
+        console.log(actionableInsightsConsole);
+        
+        // Write full report to file
         await fs.writeFile(options.output, markdownReport);
         console.log(`Report written to file: ${options.output}`);
       } else {
