@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "A TypeScript CLI tool for managing context dependencies",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/cli.js",
   "scripts": {
     "build": "tsc",
     "test": "vitest",
-    "dev": "ts-node src/index.ts"
+    "dev": "tsx src/cli.ts"
   },
   "keywords": [
     "typescript",
@@ -15,7 +15,7 @@
     "dependencies",
     "context"
   ],
-  "author": "",
+  "author": "Johan Isevind",
   "license": "MIT",
   "dependencies": {
     "cli-progress": "^3.12.0",
@@ -31,6 +31,7 @@
     "@types/node": "^24.1.0",
     "@types/semver": "^7.7.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.3",
     "vitest": "^4.0.0"
   }
