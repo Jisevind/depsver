@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A TypeScript CLI tool for managing context dependencies",
   "type": "module",
-  "main": "dist/cli.js",
+  "main": "dist/src/cli.js",
   "scripts": {
     "build": "tsc",
     "test": "vitest",
@@ -26,7 +26,6 @@
     "semver": "^7.5.4"
   },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.52.5",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^24.1.0",
     "@types/semver": "^7.7.1",
