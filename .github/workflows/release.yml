@@ -28,8 +28,6 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          # Always authenticate for npm registry
-          always-auth: true
 
       - name: Install dependencies
         run: |
