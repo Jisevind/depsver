@@ -26,18 +26,18 @@
     "semver": "^7.5.4"
   },
   "devDependencies": {
-    "@types/cli-progress": "^3.11.6",
-    "@types/node": "^24.1.0",
-    "@types/semver": "^7.7.1",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.20.6",
-    "typescript": "^5.3.3",
-    "vitest": "^4.0.0",
-    "semantic-release": "^24.0.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.0",
     "@semantic-release/github": "^10.0.0",
-    "@semantic-release/npm": "^12.0.0",
-    "@semantic-release/release-notes-generator": "^14.0.0"
+    "@semantic-release/npm": "^13.1.2",
+    "@semantic-release/release-notes-generator": "^14.0.0",
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^24.1.0",
+    "@types/semver": "^7.7.1",
+    "semantic-release": "^25.0.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.0"
   }
 }
