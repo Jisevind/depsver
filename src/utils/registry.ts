@@ -2,6 +2,8 @@
  * Registry utility for fetching latest package versions from npm registry
  */
 
+import { NetworkError, wrapError } from './errors.js';
+
 interface NpmPackageInfo {
   version: string;
 }
@@ -133,8 +135,7 @@ export async function fetchLatestVersion(packageName: string): Promise<string | 
     const result = await fetchLatestVersionWithRetry(packageName);
     return result.version === 'unknown' ? null : result.version;
   } catch (error) {
-    console.warn(`Failed to fetch latest version for ${packageName}:`, error);
-    return null;
+    throw wrapError(error, `Failed to fetch latest version for ${packageName}`) as NetworkError;
   }
 }
 

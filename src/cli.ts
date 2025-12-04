@@ -7,6 +7,13 @@ import clipboardy from 'clipboardy';
 import cliProgress from 'cli-progress';
 import { NpmManager } from './managers/NpmManager.js';
 import { formatReport, formatActionableInsights, formatActionableInsightsConsole } from './utils/formatter.js';
+import {
+  InvalidProjectError,
+  ClipboardError,
+  FileSystemError,
+  formatError,
+  wrapError
+} from './utils/errors.js';
 
 const program = new Command();
 
@@ -28,11 +35,17 @@ program
       const manager = new NpmManager();
       
       // Check if this is a valid npm project
-      const isValid = await manager.detect(resolvedPath);
-      if (!isValid) {
-        console.error('Error: No package-lock.json found in the specified directory.');
-        console.error('Make sure you are running this command in an npm project directory.');
-        process.exit(1);
+      try {
+        const isValid = await manager.detect(resolvedPath);
+        if (!isValid) {
+          throw new InvalidProjectError(resolvedPath);
+        }
+      } catch (error) {
+        if (error instanceof InvalidProjectError) {
+          console.error(formatError(error));
+          process.exit(1);
+        }
+        throw error;
       }
       
       // Create progress bar with stderr stream to avoid corrupting output
@@ -62,22 +75,43 @@ program
       
       // Handle output
       if (options.clip) {
-        await clipboardy.write(markdownReport);
-        console.log('Report copied to clipboard!');
+        try {
+          await clipboardy.write(markdownReport);
+          console.log('Report copied to clipboard!');
+        } catch (error) {
+          const clipboardError = wrapError(error, 'Failed to copy to clipboard') as ClipboardError;
+          console.error(formatError(clipboardError));
+          process.exit(1);
+        }
       } else if (options.output) {
-        // Display Actionable Insights to console (plain text format)
-        const actionableInsightsConsole = formatActionableInsightsConsole(report);
-        console.log(actionableInsightsConsole);
-        
-        // Write full report to file
-        await fs.writeFile(options.output, markdownReport);
-        console.log(`Report written to file: ${options.output}`);
+        try {
+          // Display Actionable Insights to console (plain text format)
+          const actionableInsightsConsole = formatActionableInsightsConsole(report);
+          console.log(actionableInsightsConsole);
+          
+          // Write full report to file
+          await fs.writeFile(options.output, markdownReport);
+          console.log(`Report written to file: ${options.output}`);
+        } catch (error) {
+          const fsError = wrapError(error, `Failed to write report to ${options.output}`) as FileSystemError;
+          console.error(formatError(fsError));
+          process.exit(1);
+        }
       } else {
         console.log(markdownReport);
       }
       
     } catch (error) {
-      console.error('Error analyzing dependencies:', error instanceof Error ? error.message : error);
+      // Handle known DepsverErrors with proper formatting
+      if (error instanceof InvalidProjectError ||
+          error instanceof ClipboardError ||
+          error instanceof FileSystemError) {
+        console.error(formatError(error));
+        process.exit(1);
+      }
+      
+      // Handle any other errors
+      console.error(formatError(wrapError(error, 'Analysis failed')));
       process.exit(1);
     } finally {
       // Always stop the progress bar

@@ -2,6 +2,13 @@ import { promises as fs } from 'fs';
 import * as semver from 'semver';
 import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks, PackageLock, PackageLockPackage } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
+import {
+  MalformedPackageJsonError,
+  MalformedPackageLockError,
+  FileSystemError,
+  NetworkError,
+  wrapError
+} from '../utils/errors.js';
 
 /**
  * Extracts the package name from a package-lock.json path.
@@ -56,11 +63,30 @@ export class NpmManager implements DependencyManager {
     const packageJsonPath = `${directory}/package.json`;
     const packageLockPath = `${directory}/package-lock.json`;
     
-    const packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
-    const packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
+    let packageJsonContent: string;
+    let packageLockContent: string;
     
-    const packageJson = JSON.parse(packageJsonContent);
-    const packageLock = JSON.parse(packageLockContent) as PackageLock;
+    try {
+      packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
+      packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
+    } catch (error) {
+      throw wrapError(error, `Failed to read project files`) as FileSystemError;
+    }
+    
+    let packageJson: any;
+    let packageLock: PackageLock;
+    
+    try {
+      packageJson = JSON.parse(packageJsonContent);
+    } catch (error) {
+      throw new MalformedPackageJsonError(error instanceof Error ? error.message : String(error));
+    }
+    
+    try {
+      packageLock = JSON.parse(packageLockContent) as PackageLock;
+    } catch (error) {
+      throw new MalformedPackageLockError(error instanceof Error ? error.message : String(error));
+    }
     
     // Step 2: Extract requested dependencies
     const requestedDependencies = {
@@ -79,7 +105,12 @@ export class NpmManager implements DependencyManager {
     onProgress?.start(uniquePackageNames.length, 'Fetching latest versions');
     
     // Step 4: Fetch latest versions
-    const latestVersions = await fetchLatestVersions(uniquePackageNames, onProgress?.increment);
+    let latestVersions: Map<string, string>;
+    try {
+      latestVersions = await fetchLatestVersions(uniquePackageNames, onProgress?.increment);
+    } catch (error) {
+      throw wrapError(error, 'Failed to fetch latest package versions') as NetworkError;
+    }
     
     // Stop progress tracking
     onProgress?.stop();
