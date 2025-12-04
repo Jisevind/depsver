@@ -1,4 +1,27 @@
 // src/managers/types.ts
+
+/**
+ * Interface for package information in package-lock.json
+ */
+export interface PackageLockPackage {
+  version: string;
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  dev?: boolean;
+  optional?: boolean;
+  integrity?: string;
+}
+
+/**
+ * Interface for the root package-lock.json structure
+ */
+export interface PackageLock {
+  name: string;
+  version: string;
+  lockfileVersion: number;
+  packages: Record<string, PackageLockPackage>;
+}
+
 export interface DependencyInfo {
   name: string;
   requested: string;

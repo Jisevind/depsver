@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as semver from 'semver';
-import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks } from './types.js';
+import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks, PackageLock, PackageLockPackage } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
 
 /**
@@ -60,7 +60,7 @@ export class NpmManager implements DependencyManager {
     const packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
     
     const packageJson = JSON.parse(packageJsonContent);
-    const packageLock = JSON.parse(packageLockContent);
+    const packageLock = JSON.parse(packageLockContent) as PackageLock;
     
     // Step 2: Extract requested dependencies
     const requestedDependencies = {
@@ -93,8 +93,8 @@ export class NpmManager implements DependencyManager {
       // Extract package name from path
       const packageName = extractPackageName(packagePath);
       
-      // Type assertion for packageInfo
-      const pkgInfo = packageInfo as any;
+      // Type assertion for packageInfo with proper interface
+      const pkgInfo = packageInfo as PackageLockPackage;
       
       // Create dependency info for ALL packages (needed for blocker detection)
       const dependencyInfo: DependencyInfo = {
