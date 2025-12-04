@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import semver from 'semver';
+import * as semver from 'semver';
 import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
 
@@ -119,7 +119,28 @@ export class NpmManager implements DependencyManager {
       }
     }
     
-    // Step 7: Core Analysis Logic - Categorize dependencies
+    // Step 7: Build dependency index for efficient blocker detection - O(n + m)
+    const dependencyIndex = new Map<string, Set<string>>();
+    const reverseDependencyIndex = new Map<string, Set<string>>();
+
+    for (const [packageName, packageInfo] of allPackagesMap) {
+      const dependencies = new Set([
+        ...Object.keys(packageInfo.dependencies || {}),
+        ...Object.keys(packageInfo.peerDependencies || {})
+      ]);
+      
+      dependencyIndex.set(packageName, dependencies);
+      
+      // Build reverse index: who depends on this package
+      for (const dep of dependencies) {
+        if (!reverseDependencyIndex.has(dep)) {
+          reverseDependencyIndex.set(dep, new Set());
+        }
+        reverseDependencyIndex.get(dep)!.add(packageName);
+      }
+    }
+
+    // Step 8: Core Analysis Logic - Categorize dependencies
     const safe: DependencyInfo[] = [];
     const blocked: (DependencyInfo & { blocker: string })[] = [];
     const majorJump: DependencyInfo[] = [];
@@ -133,32 +154,29 @@ export class NpmManager implements DependencyManager {
         continue;
       }
 
-      // Step 4: Blocker Check
-      let blockerName: string | null = null;
+      // Step 4: Blocker Check using reverse index - O(k) where k = packages depending on dep
+      let foundBlockerName: string | null = null;
+      const requiredBy = reverseDependencyIndex.get(dep.name) || new Set();
       
-      // Iterate through ALL packages to find potential blockers
-      for (const [potentialBlockerName, potentialBlocker] of allPackagesMap) {
-        // Skip if it's the same package
-        if (potentialBlockerName === dep.name) continue;
+      for (const blockerName of requiredBy) {
+        const blocker = allPackagesMap.get(blockerName);
+        if (!blocker) continue;
         
-        // Check if potentialBlocker has a dependency on dep.name (either regular or peer)
-        const requiredRange = potentialBlocker.dependencies[dep.name] ||
-                             potentialBlocker.peerDependencies[dep.name];
-        if (requiredRange) {
-          // Check if the current version satisfies the required range
-          if (dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
-            blockerName = potentialBlockerName;
-            break; // Found a blocker, stop searching
-          }
+        const requiredRange = blocker.dependencies[dep.name] ||
+                             blocker.peerDependencies[dep.name];
+        
+        if (requiredRange && dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
+          foundBlockerName = blockerName;
+          break;
         }
       }
       
       // Step 5: Classification Logic
-      if (blockerName) {
+      if (foundBlockerName) {
         // Package is blocked by another package
         blocked.push({
           ...dep,
-          blocker: blockerName
+          blocker: foundBlockerName
         });
       } else if (dep.latest === 'unknown' || semver.gte(dep.resolved, dep.latest)) {
         // Package is already at latest version or we can't verify it - do nothing
