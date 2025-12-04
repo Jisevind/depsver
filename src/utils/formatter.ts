@@ -1,13 +1,29 @@
 import { AnalysisReport } from '../managers/types.js';
 
 /**
- * Formats an AnalysisReport into a Markdown string for the "Full-Context Advisor" report
+ * Configuration for formatting options
  */
-export function formatReport(report: AnalysisReport): string {
-  let markdown = '## 📦 Dependency Analysis Report\n\n';
+interface FormatConfig {
+  includeHeader?: boolean;
+  includeProjectDependencies?: boolean;
+  includeDependencyGraph?: boolean;
+  includeRegistryStatus?: boolean;
+  style: 'markdown' | 'console';
+}
+
+/**
+ * Internal function to format actionable insights with configurable styling
+ */
+function formatActionableInsightsInternal(report: AnalysisReport, config: FormatConfig): string {
+  const isMarkdown = config.style === 'markdown';
+  const isConsole = config.style === 'console';
   
-  // Section 1: Actionable Insights
-  markdown += '### 1. Actionable Insights\n\n';
+  let output = '';
+  
+  // Add header if requested
+  if (config.includeHeader) {
+    output += isMarkdown ? '### 1. Actionable Insights\n\n' : 'Actionable Insights:\n\n';
+  }
 
   // No Updates Needed
   if (
@@ -15,49 +31,72 @@ export function formatReport(report: AnalysisReport): string {
     report.blocked.length === 0 &&
     report.majorJump.length === 0
   ) {
-    markdown += '✅ All your top-level dependencies are up-to-date. Great job!\n\n';
+    output += isMarkdown
+      ? '✅ All your top-level dependencies are up-to-date. Great job!\n\n'
+      : 'All your top-level dependencies are up-to-date. Great job!\n\n';
   }
   
   // Safe to Upgrade
   if (report.safe.length > 0) {
-    markdown += '* **✅ Safe to Upgrade:**\n';
+    output += isMarkdown
+      ? '* **✅ Safe to Upgrade:**\n'
+      : 'Safe to Upgrade:\n';
+    
     for (const dep of report.safe) {
-      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest})\n`;
+      if (isMarkdown) {
+        output += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest})\n`;
+      } else {
+        output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest})\n`;
+      }
     }
-    markdown += '\n';
+    output += '\n';
   }
   
   // Blocked Upgrades
   if (report.blocked.length > 0) {
-    markdown += '* **⚠️ Blocked Upgrades:**\n';
+    output += isMarkdown
+      ? '* **⚠️ Blocked Upgrades:**\n'
+      : 'Blocked Upgrades:\n';
+    
     for (const dep of report.blocked) {
       // Find the blocker package to get the required version
       const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
       const requiredVersion = blockerPackage?.dependencies[dep.name] ||
                              blockerPackage?.peerDependencies[dep.name] || 'unknown';
-      markdown += `    * \`${dep.name}\` (Latest: ${dep.latest}) is **blocked** by \`${dep.blocker}\` (requires \`${dep.name}@${requiredVersion}\`).\n`;
+      
+      if (isMarkdown) {
+        output += `    * \`${dep.name}\` (Latest: ${dep.latest}) is **blocked** by \`${dep.blocker}\` (requires \`${dep.name}@${requiredVersion}\`).\n`;
+      } else {
+        output += `    - ${dep.name} (Latest: ${dep.latest}) is blocked by ${dep.blocker} (requires ${dep.name}@${requiredVersion}).\n`;
+      }
     }
-    markdown += '\n';
+    output += '\n';
   }
   
   // Major Version Jumps
   if (report.majorJump.length > 0) {
-    markdown += '* **⬆️ Major Version Jumps (Review Required):**\n';
+    output += isMarkdown
+      ? '* **⬆️ Major Version Jumps (Review Required):**\n'
+      : 'Major Version Jumps (Review Required):\n';
+    
     for (const dep of report.majorJump) {
-      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
+      if (isMarkdown) {
+        output += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
+      } else {
+        output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
+      }
     }
-    markdown += '\n';
+    output += '\n';
   }
-  
-  // Add this right after Section 1's code block
-  const topLevelNames = new Set(
-    report.allDependencies
-      .filter(dep => dep.requested)
-      .map(dep => dep.name)
-  );
-  
-  // Section 2: Project Dependencies (from package.json)
-  markdown += '### 2. Project Dependencies (from package.json)\n';
+
+  return output;
+}
+
+/**
+ * Internal function to format project dependencies section
+ */
+function formatProjectDependencies(report: AnalysisReport): string {
+  let markdown = '### 2. Project Dependencies (from package.json)\n';
   const requestedDeps = new Map<string, string>();
   
   // Collect requested dependencies from allDependencies
@@ -75,8 +114,20 @@ export function formatReport(report: AnalysisReport): string {
   }
   markdown += '\n';
   
-  // Section 3: Resolved Dependency Graph (from package-lock.json)
-  markdown += '### 3. Resolved Dependency Graph (from package-lock.json)\n';
+  return markdown;
+}
+
+/**
+ * Internal function to format dependency graph section
+ */
+function formatDependencyGraph(report: AnalysisReport): string {
+  const topLevelNames = new Set(
+    report.allDependencies
+      .filter(dep => dep.requested)
+      .map(dep => dep.name)
+  );
+  
+  let markdown = '### 3. Resolved Dependency Graph (from package-lock.json)\n';
   
   // Sort dependencies by name for consistent output
   const sortedAllDeps = [...report.allDependencies].sort((a, b) => a.name.localeCompare(b.name));
@@ -97,8 +148,20 @@ export function formatReport(report: AnalysisReport): string {
   }
   markdown += '\n';
   
-  // Section 4: Registry Status (Latest Versions)
-  markdown += '### 4. Registry Status (Latest Versions)\n';
+  return markdown;
+}
+
+/**
+ * Internal function to format registry status section
+ */
+function formatRegistryStatus(report: AnalysisReport): string {
+  const topLevelNames = new Set(
+    report.allDependencies
+      .filter(dep => dep.requested)
+      .map(dep => dep.name)
+  );
+  
+  let markdown = '### 4. Registry Status (Latest Versions)\n';
   
   // Sort by name for consistent output
   const sortedLatest = [...report.allDependencies]
@@ -114,99 +177,45 @@ export function formatReport(report: AnalysisReport): string {
 }
 
 /**
+ * Formats an AnalysisReport into a Markdown string for the "Full-Context Advisor" report
+ */
+export function formatReport(report: AnalysisReport): string {
+  let markdown = '## 📦 Dependency Analysis Report\n\n';
+  
+  // Section 1: Actionable Insights
+  markdown += formatActionableInsightsInternal(report, {
+    includeHeader: true,
+    style: 'markdown'
+  });
+  
+  // Section 2: Project Dependencies (from package.json)
+  markdown += formatProjectDependencies(report);
+  
+  // Section 3: Resolved Dependency Graph (from package-lock.json)
+  markdown += formatDependencyGraph(report);
+  
+  // Section 4: Registry Status (Latest Versions)
+  markdown += formatRegistryStatus(report);
+  
+  return markdown;
+}
+
+/**
  * Formats just the Actionable Insights section from an AnalysisReport
  */
 export function formatActionableInsights(report: AnalysisReport): string {
-  let markdown = '### 1. Actionable Insights\n\n';
-
-  // No Updates Needed
-  if (
-    report.safe.length === 0 &&
-    report.blocked.length === 0 &&
-    report.majorJump.length === 0
-  ) {
-    markdown += '✅ All your top-level dependencies are up-to-date. Great job!\n\n';
-  }
-  
-  // Safe to Upgrade
-  if (report.safe.length > 0) {
-    markdown += '* **✅ Safe to Upgrade:**\n';
-    for (const dep of report.safe) {
-      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest})\n`;
-    }
-    markdown += '\n';
-  }
-  
-  // Blocked Upgrades
-  if (report.blocked.length > 0) {
-    markdown += '* **⚠️ Blocked Upgrades:**\n';
-    for (const dep of report.blocked) {
-      // Find the blocker package to get the required version
-      const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
-      const requiredVersion = blockerPackage?.dependencies[dep.name] ||
-                             blockerPackage?.peerDependencies[dep.name] || 'unknown';
-      markdown += `    * \`${dep.name}\` (Latest: ${dep.latest}) is **blocked** by \`${dep.blocker}\` (requires \`${dep.name}@${requiredVersion}\`).\n`;
-    }
-    markdown += '\n';
-  }
-  
-  // Major Version Jumps
-  if (report.majorJump.length > 0) {
-    markdown += '* **⬆️ Major Version Jumps (Review Required):**\n';
-    for (const dep of report.majorJump) {
-      markdown += `    * \`${dep.name}\`: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
-    }
-    markdown += '\n';
-  }
-
-  return markdown;
+  return formatActionableInsightsInternal(report, {
+    includeHeader: true,
+    style: 'markdown'
+  });
 }
 
 /**
  * Formats just the Actionable Insights section from an AnalysisReport for console output (plain text, no markdown)
  */
 export function formatActionableInsightsConsole(report: AnalysisReport): string {
-  let output = 'Actionable Insights:\n\n';
-
-  // No Updates Needed
-  if (
-    report.safe.length === 0 &&
-    report.blocked.length === 0 &&
-    report.majorJump.length === 0
-  ) {
-    output += 'All your top-level dependencies are up-to-date. Great job!\n\n';
-  }
-  
-  // Safe to Upgrade
-  if (report.safe.length > 0) {
-    output += 'Safe to Upgrade:\n';
-    for (const dep of report.safe) {
-      output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest})\n`;
-    }
-    output += '\n';
-  }
-  
-  // Blocked Upgrades
-  if (report.blocked.length > 0) {
-    output += 'Blocked Upgrades:\n';
-    for (const dep of report.blocked) {
-      // Find the blocker package to get the required version
-      const blockerPackage = report.allDependencies.find(p => p.name === dep.blocker);
-      const requiredVersion = blockerPackage?.dependencies[dep.name] ||
-                             blockerPackage?.peerDependencies[dep.name] || 'unknown';
-      output += `    - ${dep.name} (Latest: ${dep.latest}) is blocked by ${dep.blocker} (requires ${dep.name}@${requiredVersion}).\n`;
-    }
-    output += '\n';
-  }
-  
-  // Major Version Jumps
-  if (report.majorJump.length > 0) {
-    output += 'Major Version Jumps (Review Required):\n';
-    for (const dep of report.majorJump) {
-      output += `    - ${dep.name}: (${dep.resolved} → ${dep.latest}) - Review breaking changes.\n`;
-    }
-    output += '\n';
-  }
-
-  return output;
+  return formatActionableInsightsInternal(report, {
+    includeHeader: true,
+    style: 'console'
+  });
 }
