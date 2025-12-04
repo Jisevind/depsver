@@ -1,10 +1,8 @@
 CODEBASE.md
-DEVELOPMENT.md
-RELEASE.md
 *-report.md
 *-plan.md
 test-files/
-
+local-docs/
 
 # Dependencies
 node_modules/
