@@ -2,16 +2,21 @@
 
 > **⚠️ Disclaimer**: This tool provides guidance and analysis for dependency management, but all dependency updates should be thoroughly tested in your specific environment before applying to production. Always review breaking changes and test updates in a development environment first.
 
-A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports. This tool helps you understand your project's dependency landscape by analyzing package.json and package-lock.json files, checking for outdated packages, and identifying potential upgrade blockers.
+A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports. This tool helps you understand your project's dependency landscape by analyzing package.json and package-lock.json files, checking for outdated packages, and identifying potential upgrade blockers with comprehensive error handling and performance optimizations.
+
+**Current Version: 1.0.0** - Now available as a stable CLI tool with executable `depsver` command.
 
 ## Features
 
 - **Dependency Analysis**: Analyzes your npm project's dependencies and their current versions
 - **Upgrade Classification**: Categorizes dependencies into safe upgrades, blocked upgrades, and major version jumps
-- **Blocker Detection**: Identifies which packages are preventing other packages from being upgraded
+- **Blocker Detection**: Identifies which packages are preventing other packages from being upgraded using optimized O(n + m) algorithms
 - **Progress Tracking**: Shows real-time progress when fetching latest versions from the npm registry
 - **Multiple Output Formats**: Supports console output, file output, and clipboard copying
 - **AI-Ready Reports**: Generates markdown reports optimized for AI assistants and code review tools
+- **Comprehensive Error Handling**: Provides detailed error messages with actionable suggestions for common issues
+- **Performance Optimizations**: Features caching, retry logic, and concurrent processing for faster analysis
+- **Type Safety**: Full TypeScript support with proper interfaces for package-lock.json parsing
 
 ## Installation
 
@@ -51,6 +56,8 @@ Analyze a specific directory:
 ```bash
 depsver /path/to/your/project
 ```
+
+**Note**: The `depsver` command is available after global installation (`npm install -g depsver`) or can be run with `npx depsver` for one-time use.
 
 ### Output Options
 
@@ -161,8 +168,9 @@ src/
 │   ├── NpmManager.ts   # npm-specific dependency analysis
 │   └── types.ts        # Type definitions for dependency managers
 └── utils/
+    ├── errors.ts       # Custom error classes and error handling
     ├── formatter.ts    # Report formatting utilities
-    └── registry.ts     # npm registry API utilities
+    └── registry.ts     # npm registry API utilities with caching
 
 test/
 ├── basic.test.ts       # Basic test suite
@@ -191,11 +199,24 @@ MIT
 
 ## Troubleshooting
 
+### Enhanced Error Handling
+Depsver now provides comprehensive error handling with actionable suggestions for common issues:
+
+- **Invalid Project Error**: Ensures you're in a valid npm project directory
+- **Malformed package.json/package-lock.json**: Provides specific guidance for JSON syntax issues
+- **Network Errors**: Offers troubleshooting steps for connectivity and firewall issues
+- **Clipboard Errors**: Suggests alternatives when clipboard access fails
+- **File System Errors**: Helps resolve permission and path issues
+
 ### "No package-lock.json found" Error
 Ensure you're running the command in a directory that contains both `package.json` and `package-lock.json` files. If you don't have a lockfile, run `npm install` to generate one.
 
 ### Network Errors
-The tool requires internet access to fetch the latest versions from the npm registry. Check your network connection if you see timeout or connection errors.
+The tool requires internet access to fetch the latest versions from the npm registry. Check your network connection if you see timeout or connection errors. The tool now includes automatic retry logic with exponential backoff for better reliability.
 
 ### Large Projects
-For projects with many dependencies, the version fetching may take some time. The progress bar shows the current status, and the tool processes packages concurrently with rate limiting to avoid overwhelming the registry.
+For projects with many dependencies, the version fetching has been optimized with:
+- In-memory caching with 5-minute TTL to reduce redundant API calls
+- Concurrent processing with adaptive rate limiting
+- O(n + m) blocker detection algorithm for improved performance
+- Progress tracking to show current status
