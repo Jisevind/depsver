@@ -26,6 +26,12 @@ async function fetchLatestVersionWithRetry(
 ): Promise<{ packageName: string; version: string }> {
   let lastError: Error | null = null;
   
+  // Validate package name before making any requests
+  if (!packageName || packageName.trim() === '') {
+    console.warn(`Invalid package name: "${packageName}". Package name cannot be empty.`);
+    return { packageName, version: 'unknown' };
+  }
+  
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // Check cache first
@@ -64,8 +70,8 @@ async function fetchLatestVersionWithRetry(
     } catch (error) {
       lastError = error as Error;
       
-      // Don't retry on client errors (4xx)
-      if (error instanceof Error && error.message.includes('HTTP 4')) {
+      // Don't retry on client errors (4xx) or invalid package names
+      if (error instanceof Error && (error.message.includes('HTTP 4') || error.message.includes('Invalid package name'))) {
         break;
       }
       
@@ -78,7 +84,7 @@ async function fetchLatestVersionWithRetry(
     }
   }
   
-  console.warn(`Failed to fetch latest version for ${packageName} after ${maxRetries + 1} attempts:`, lastError);
+  console.warn(`Failed to fetch latest version for "${packageName}" after ${maxRetries + 1} attempts:`, lastError);
   return { packageName, version: 'unknown' };
 }
 

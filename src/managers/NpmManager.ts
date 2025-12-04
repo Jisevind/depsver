@@ -16,10 +16,29 @@ import {
  * e.g., "node_modules/clipboardy/node_modules/execa" -> "execa"
  * e.g., "node_modules/@types/node" -> "@types/node"
  */
-function extractPackageName(packagePath: string): string {
+export function extractPackageName(packagePath: string): string {
   const parts = packagePath.split('node_modules/');
   // The last part will always be the package name
   return parts[parts.length - 1] || '';
+}
+
+/**
+ * Validates if a package name is valid for npm registry requests
+ * @param packageName - The package name to validate
+ * @returns boolean - True if the package name is valid
+ */
+export function isValidPackageName(packageName: string): boolean {
+  // Package name should not be empty or just whitespace
+  if (!packageName || packageName.trim() === '') {
+    return false;
+  }
+  
+  // Basic npm package name validation
+  // Package names can contain lowercase letters, numbers, hyphens, underscores, and dots
+  // Scoped packages start with @ and contain a slash
+  const npmPackageNameRegex = /^(@[a-z0-9-_.]+\/[a-z0-9-_.]+|[a-z0-9-_.]+)$/;
+  
+  return npmPackageNameRegex.test(packageName);
 }
 
 /**
@@ -97,7 +116,8 @@ export class NpmManager implements DependencyManager {
     // Step 3: Get unique package names from package-lock.json
     const packageNames = Object.keys(packageLock.packages)
       .filter(key => key !== "") // Skip root package
-      .map(key => extractPackageName(key));
+      .map(key => extractPackageName(key))
+      .filter(packageName => isValidPackageName(packageName)); // Filter out invalid package names
     
     const uniquePackageNames = [...new Set(packageNames)];
     
@@ -123,6 +143,11 @@ export class NpmManager implements DependencyManager {
       
       // Extract package name from path
       const packageName = extractPackageName(packagePath);
+      
+      // Skip invalid package names
+      if (!isValidPackageName(packageName)) {
+        continue;
+      }
       
       // Type assertion for packageInfo with proper interface
       const pkgInfo = packageInfo as PackageLockPackage;
