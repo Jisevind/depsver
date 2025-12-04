@@ -26,7 +26,7 @@
     "commander": "^14.0.0",
     "glob": "^11.0.3",
     "node-fetch": "^3.3.2",
-    "semver": "^7.5.4"
+    "semver": "^7.7.0"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
@@ -39,8 +39,8 @@
     "@types/semver": "^7.7.1",
     "semantic-release": "^25.0.2",
     "ts-node": "^10.9.2",
-    "tsx": "^4.20.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.3",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.15"
   }
 }
