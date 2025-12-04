@@ -1,4 +1,4 @@
-import { fetchLatestVersions, fetchLatestVersion } from '../../src/utils/registry.js';
+import { fetchLatestVersions, fetchLatestVersion, clearVersionCache } from '../../src/utils/registry.js';
 
 // Mock fetch at the global level
 const mockFetch = vi.fn();
@@ -8,6 +8,8 @@ describe('fetchLatestVersions', () => {
     vi.resetAllMocks();
     // Set up global fetch mock
     global.fetch = mockFetch;
+    // Clear cache between tests
+    clearVersionCache();
   });
 
   afterEach(() => {
@@ -16,7 +18,7 @@ describe('fetchLatestVersions', () => {
   });
 
   it('should fetch and return latest versions for multiple packages', async () => {
-    mockFetch.mockImplementation((url: string) => {
+    mockFetch.mockImplementation((url: string, options?: any) => {
       let pkgData = {};
       if (url.includes('react')) {
         pkgData = { version: '18.0.0' };
@@ -35,8 +37,8 @@ describe('fetchLatestVersions', () => {
     expect(versions.get('react')).toBe('18.0.0');
     expect(versions.get('vitest')).toBe('1.0.0');
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/react/latest');
-    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/vitest/latest');
+    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/react/latest', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/vitest/latest', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('should handle failed fetches gracefully and return "unknown"', async () => {
@@ -50,6 +52,7 @@ describe('fetchLatestVersions', () => {
     const versions = await fetchLatestVersions(packages);
 
     expect(versions.get('non-existent-package')).toBe('unknown');
+    // Should retry 3 times for 404 errors (client errors don't retry, but we still check once)
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -63,7 +66,8 @@ describe('fetchLatestVersions', () => {
     const versions = await fetchLatestVersions(packages);
 
     expect(versions.get('package-without-version')).toBe('unknown');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // Should retry 3 times for missing version data
+    expect(mockFetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
   });
 });
 
@@ -72,6 +76,8 @@ describe('fetchLatestVersion', () => {
     vi.resetAllMocks();
     // Set up global fetch mock
     global.fetch = mockFetch;
+    // Clear cache between tests
+    clearVersionCache();
   });
 
   afterEach(() => {
@@ -88,7 +94,7 @@ describe('fetchLatestVersion', () => {
     const version = await fetchLatestVersion('my-package');
 
     expect(version).toBe('1.2.3');
-    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/my-package/latest');
+    expect(mockFetch).toHaveBeenCalledWith('https://registry.npmjs.org/my-package/latest', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('should return null on failure', async () => {
