@@ -113,29 +113,108 @@ export class NpmManager implements DependencyManager {
       ...packageJson.devDependencies
     };
     
-    // Step 3: Get unique package names from package-lock.json
-    const packageNames = Object.keys(packageLock.packages)
-      .filter(key => key !== "") // Skip root package
-      .map(key => extractPackageName(key))
+    // Step 3: Stage 1 - Fetch top-level dependencies only
+    const topLevelPackageNames = Object.keys(requestedDependencies)
       .filter(packageName => isValidPackageName(packageName)); // Filter out invalid package names
     
-    const uniquePackageNames = [...new Set(packageNames)];
+    // Initialize progress tracking for Stage 1
+    onProgress?.start(topLevelPackageNames.length, 'Fetching latest versions for top-level dependencies');
     
-    // Initialize progress tracking
-    onProgress?.start(uniquePackageNames.length, 'Fetching latest versions');
-    
-    // Step 4: Fetch latest versions
-    let latestVersions: Map<string, string>;
+    // Step 4: Stage 1 - Fetch latest versions for top-level dependencies only
+    let topLevelLatestVersions: Map<string, string>;
     try {
-      latestVersions = await fetchLatestVersions(uniquePackageNames, onProgress?.increment);
+      topLevelLatestVersions = await fetchLatestVersions(topLevelPackageNames, onProgress?.increment);
     } catch (error) {
       throw wrapError(error, 'Failed to fetch latest package versions') as NetworkError;
     }
     
-    // Stop progress tracking
+    // Stop progress tracking for Stage 1
     onProgress?.stop();
     
-    // Step 5: Create a Map of ALL packages for blocker detection
+    // Step 5: Create initial dependency info for top-level dependencies only
+    const initialPackagesMap = new Map<string, DependencyInfo>();
+    
+    for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
+      if (packagePath === "") continue; // Skip root package
+      
+      // Extract package name from path
+      const packageName = extractPackageName(packagePath);
+      
+      // Skip invalid package names and non-top-level dependencies for now
+      if (!isValidPackageName(packageName) || !requestedDependencies[packageName]) {
+        continue;
+      }
+      
+      // Type assertion for packageInfo with proper interface
+      const pkgInfo = packageInfo as PackageLockPackage;
+      
+      // Create dependency info for top-level packages only
+      const dependencyInfo: DependencyInfo = {
+        name: packageName,
+        requested: requestedDependencies[packageName] || undefined,
+        resolved: pkgInfo.version,
+        latest: topLevelLatestVersions.get(packageName) || "unknown",
+        dependencies: pkgInfo.dependencies || {},
+        peerDependencies: pkgInfo.peerDependencies || {}
+      };
+      
+      initialPackagesMap.set(packageName, dependencyInfo);
+    }
+    
+    // Step 6: Initial analysis to identify packages that need blocker checking
+    const potentiallyBlockedPackages: string[] = [];
+    
+    for (const depName of Object.keys(requestedDependencies)) {
+      const dep = initialPackagesMap.get(depName);
+      if (!dep || dep.latest === 'unknown') continue;
+      
+      // Check if this package might need an upgrade
+      if (dep.requested && !semver.satisfies(dep.latest, dep.requested)) {
+        potentiallyBlockedPackages.push(depName);
+      }
+    }
+    
+    // Step 7: Stage 2 - Selective fetching of transitive dependencies
+    let selectiveLatestVersions = new Map(topLevelLatestVersions);
+    
+    if (potentiallyBlockedPackages.length > 0) {
+      // Find all transitive packages that could block the identified packages
+      const transitivePackagesToFetch = new Set<string>();
+      
+      for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
+        if (packagePath === "") continue; // Skip root package
+        
+        const packageName = extractPackageName(packagePath);
+        if (!isValidPackageName(packageName) || requestedDependencies[packageName]) continue;
+        
+        // Check if this transitive package depends on any potentially blocked packages
+        const pkgInfo = packageInfo as PackageLockPackage;
+        const allDeps = { ...pkgInfo.dependencies, ...pkgInfo.peerDependencies };
+        
+        for (const blockedPackage of potentiallyBlockedPackages) {
+          if (allDeps[blockedPackage]) {
+            transitivePackagesToFetch.add(packageName);
+            break;
+          }
+        }
+      }
+      
+      // Fetch latest versions for selective transitive packages only
+      if (transitivePackagesToFetch.size > 0) {
+        onProgress?.start(transitivePackagesToFetch.size, 'Fetching latest versions for blocker analysis');
+        
+        const transitiveLatestVersions = await fetchLatestVersions(
+          Array.from(transitivePackagesToFetch), 
+          onProgress?.increment
+        );
+        
+        // Merge with top-level versions
+        selectiveLatestVersions = new Map([...topLevelLatestVersions, ...transitiveLatestVersions]);
+        onProgress?.stop();
+      }
+    }
+    
+    // Step 8: Create a Map of ALL packages for blocker detection
     const allPackagesMap = new Map<string, DependencyInfo>();
     
     for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
@@ -157,7 +236,7 @@ export class NpmManager implements DependencyManager {
         name: packageName,
         requested: requestedDependencies[packageName] || undefined,
         resolved: pkgInfo.version,
-        latest: latestVersions.get(packageName) || "unknown",
+        latest: selectiveLatestVersions.get(packageName) || "unknown",
         dependencies: pkgInfo.dependencies || {},
         peerDependencies: pkgInfo.peerDependencies || {}
       };
@@ -165,7 +244,7 @@ export class NpmManager implements DependencyManager {
       allPackagesMap.set(packageName, dependencyInfo);
     }
     
-    // Step 6: Populate allDependencies - only for top-level dependencies
+    // Step 9: Populate allDependencies - only for top-level dependencies
     const allDependencies: DependencyInfo[] = [];
     
     for (const depName of Object.keys(requestedDependencies)) {
@@ -175,7 +254,7 @@ export class NpmManager implements DependencyManager {
       }
     }
     
-    // Step 7: Build dependency index for efficient blocker detection - O(n + m)
+    // Step 10: Build dependency index for efficient blocker detection - O(n + m)
     const dependencyIndex = new Map<string, Set<string>>();
     const reverseDependencyIndex = new Map<string, Set<string>>();
 
@@ -196,7 +275,7 @@ export class NpmManager implements DependencyManager {
       }
     }
 
-    // Step 8: Core Analysis Logic - Categorize dependencies
+    // Step 11: Core Analysis Logic - Categorize dependencies
     const safe: DependencyInfo[] = [];
     const blocked: (DependencyInfo & { blocker: string })[] = [];
     const majorJump: DependencyInfo[] = [];
@@ -210,7 +289,7 @@ export class NpmManager implements DependencyManager {
         continue;
       }
 
-      // Step 4: Blocker Check using reverse index - O(k) where k = packages depending on dep
+      // Step 11a: Blocker Check using reverse index - O(k) where k = packages depending on dep
       let foundBlockerName: string | null = null;
       const requiredBy = reverseDependencyIndex.get(dep.name) || new Set();
       
@@ -227,22 +306,39 @@ export class NpmManager implements DependencyManager {
         }
       }
       
-      // Step 5: Classification Logic
+      // Step 11b: Classification Logic - Compare Current vs Wanted (like npm outdated)
       if (foundBlockerName) {
         // Package is blocked by another package
         blocked.push({
           ...dep,
           blocker: foundBlockerName
         });
-      } else if (dep.latest === 'unknown' || semver.gte(dep.resolved, dep.latest)) {
-        // Package is already at latest version or we can't verify it - do nothing
+      } else if (dep.latest === 'unknown') {
+        // Can't verify latest version - skip
         continue;
-      } else if (semver.major(dep.resolved) < semver.major(dep.latest)) {
-        // Major version jump required
-        majorJump.push(dep);
+      } else if (!dep.requested) {
+        // No requested version found (shouldn't happen for top-level deps) - skip
+        continue;
       } else {
-        // Safe minor or patch upgrade
-        safe.push(dep);
+        // Calculate what version would be installed (Wanted = latest that satisfies range)
+        let wantedVersion = dep.latest;
+        if (!semver.satisfies(dep.latest, dep.requested)) {
+          // Find the latest version that satisfies the range
+          // For now, we'll use the current resolved version as fallback
+          wantedVersion = dep.resolved;
+        }
+        
+        // Compare current (resolved) vs wanted
+        if (semver.gt(wantedVersion, dep.resolved)) {
+          if (semver.major(dep.resolved) < semver.major(wantedVersion)) {
+            // Major version jump required
+            majorJump.push(dep);
+          } else {
+            // Safe minor or patch upgrade
+            safe.push(dep);
+          }
+        }
+        // If current >= wanted, no upgrade needed
       }
     }
     
