@@ -3,18 +3,10 @@ name: Release
 on:
   push:
     branches:
-      - master
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
+      - main
 
 jobs:
   release:
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,26 +18,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '18'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm ci
 
       - name: Run tests
         run: npm test
 
-      - name: Build project
+      - name: Build
         run: npm run build
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
