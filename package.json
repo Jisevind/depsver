@@ -1,50 +1,44 @@
 {
   "name": "depsver",
   "version": "1.0.0",
-  "description": "A TypeScript CLI tool for managing context dependencies",
-  "type": "module",
-  "main": "dist/src/cli.js",
+  "description": "A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports",
+  "main": "dist/cli.js",
   "bin": {
-    "depsver": "dist/src/cli.js"
+    "depsver": "dist/cli.js"
   },
+  "type": "module",
   "scripts": {
+    "dev": "node --loader ts-node/esm src/cli.ts",
     "build": "tsc",
     "test": "vitest",
-    "dev": "tsx src/cli.ts",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run build",
-    "release": "semantic-release",
-    "release:dry": "semantic-release --dry-run"
+    "lint": "eslint src/**/*.ts",
+    "prepare": "npm run build"
   },
   "keywords": [
-    "typescript",
-    "cli",
     "dependencies",
-    "context"
+    "npm",
+    "analysis",
+    "cli",
+    "typescript"
   ],
-  "author": "Johan Isevind",
+  "author": "",
   "license": "MIT",
   "dependencies": {
+    "commander": "^11.0.0",
+    "clipboardy": "^3.0.0",
     "cli-progress": "^3.12.0",
-    "clipboardy": "^5.0.0",
-    "commander": "^14.0.0",
-    "glob": "^11.0.3",
-    "node-fetch": "^3.3.2",
-    "semver": "^7.7.0"
+    "semver": "^7.5.0"
   },
   "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/github": "^12.0.2",
-    "@semantic-release/npm": "^13.1.2",
-    "@semantic-release/release-notes-generator": "^14.1.0",
-    "@types/cli-progress": "^3.11.6",
-    "@types/node": "^24.1.0",
-    "@types/semver": "^7.7.1",
-    "semantic-release": "^25.0.2",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.3.3",
+    "@types/cli-progress": "^3.11.0",
+    "@types/node": "^20.0.0",
+    "@types/semver": "^7.5.0",
+    "eslint": "^8.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "~5.9.0",
     "vitest": "^4.0.15"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

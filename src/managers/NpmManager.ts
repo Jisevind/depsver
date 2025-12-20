@@ -1,7 +1,12 @@
 import { promises as fs } from 'fs';
 import * as semver from 'semver';
-import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks, PackageLock, PackageLockPackage } from './types.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as crypto from 'crypto';
+import { DependencyManager, AnalysisReport, DependencyInfo, ProgressCallbacks, PackageLock, PackageLockPackage, UpdateOptions, UpdateResult, UpdatePlan, PackageUpdate } from './types.js';
 import { fetchLatestVersions } from '../utils/registry.js';
+import { BackupManager } from '../utils/backup.js';
+import { UpdateValidator, TestRunner } from '../utils/validation.js';
 import {
   MalformedPackageJsonError,
   MalformedPackageLockError,
@@ -9,6 +14,8 @@ import {
   NetworkError,
   wrapError
 } from '../utils/errors.js';
+
+const execAsync = promisify(exec);
 
 /**
  * Extracts the package name from a package-lock.json path.
@@ -349,5 +356,329 @@ export class NpmManager implements DependencyManager {
       majorJump,
       allDependencies
     };
+  }
+
+  /**
+   * Preview available updates without applying them
+   * @param options - Update options for filtering and behavior
+   * @param onProgress - Optional progress callbacks
+   * @param targetDirectory - Directory to analyze (defaults to current working directory)
+   * @returns Promise<UpdatePlan> - Comprehensive update plan with categorized packages
+   */
+  async previewUpdate(options: UpdateOptions, onProgress?: ProgressCallbacks, targetDirectory: string = process.cwd()): Promise<UpdatePlan> {
+    // Get current analysis for the target directory
+    const analysis = await this.analyze(targetDirectory, onProgress);
+    
+    // Convert DependencyInfo to PackageUpdate
+    const allUpdates: PackageUpdate[] = [];
+    
+    // Process safe updates
+    for (const dep of analysis.safe) {
+      const updateType = this.getUpdateType(dep.resolved, dep.latest);
+      allUpdates.push({
+        name: dep.name,
+        currentVersion: dep.resolved,
+        targetVersion: dep.latest,
+        updateType,
+        category: 'safe'
+      });
+    }
+    
+    // Process major updates
+    for (const dep of analysis.majorJump) {
+      allUpdates.push({
+        name: dep.name,
+        currentVersion: dep.resolved,
+        targetVersion: dep.latest,
+        updateType: 'major',
+        category: 'major'
+      });
+    }
+    
+    // Process blocked updates
+    for (const dep of analysis.blocked) {
+      const updateType = this.getUpdateType(dep.resolved, dep.latest);
+      allUpdates.push({
+        name: dep.name,
+        currentVersion: dep.resolved,
+        targetVersion: dep.latest,
+        updateType,
+        category: 'blocked',
+        blocker: dep.blocker
+      });
+    }
+    
+    // Apply filters
+    let filteredUpdates = allUpdates;
+    
+    if (options.safeOnly) {
+      filteredUpdates = filteredUpdates.filter(u => u.category === 'safe');
+    }
+    
+    if (!options.includeDev) {
+      // Filter out dev dependencies (would need package.json access)
+      // For now, we'll include all dependencies
+    }
+    
+    // Categorize for the plan
+    const categories = {
+      safe: filteredUpdates.filter(u => u.category === 'safe'),
+      major: filteredUpdates.filter(u => u.category === 'major'),
+      blocked: filteredUpdates.filter(u => u.category === 'blocked')
+    };
+    
+    // Estimate time (rough calculation: 30 seconds per package)
+    const estimatedTime = filteredUpdates.length * 30;
+    
+    // Identify risks
+    const risks: string[] = [];
+    if (categories.major.length > 0) {
+      risks.push(`${categories.major.length} major version updates may contain breaking changes`);
+    }
+    if (categories.blocked.length > 0) {
+      risks.push(`${categories.blocked.length} packages are blocked by dependencies`);
+    }
+    
+    return {
+      packages: filteredUpdates,
+      categories,
+      estimatedTime,
+      risks,
+      totalPackages: filteredUpdates.length
+    };
+  }
+
+  /**
+   * Update selected packages
+   * @param selectedPackages - Array of package names to update
+   * @param options - Update options
+   * @returns Promise<UpdateResult> - Result of the update operation
+   */
+  async update(selectedPackages: string[], options: UpdateOptions, projectPath: string = process.cwd()): Promise<UpdateResult> {
+    const result: UpdateResult = {
+      success: true,
+      updated: [],
+      failed: [],
+      blocked: [],
+      errors: []
+    };
+
+    try {
+      // Pre-update validation
+      const preValidationErrors = await UpdateValidator.validatePreUpdateState(projectPath);
+      if (preValidationErrors.some(e => e.severity === 'error')) {
+        result.success = false;
+        result.errors = preValidationErrors.map(e => `${e.package}: ${e.reason}`);
+        return result;
+      }
+
+      // Get update plan for validation
+      const plan = await this.previewUpdate(options, undefined, projectPath);
+      const selectedUpdates = plan.packages.filter(p => selectedPackages.includes(p.name));
+      
+      // Validate selected updates
+      const validationErrors = await UpdateValidator.validateUpdates(selectedUpdates);
+      const criticalErrors = validationErrors.filter(e => e.severity === 'error');
+      
+      if (criticalErrors.length > 0) {
+        result.success = false;
+        result.errors = criticalErrors.map(e => `${e.package}: ${e.reason}`);
+        return result;
+      }
+
+      // Show warnings but continue
+      const warnings = validationErrors.filter(e => e.severity === 'warning');
+      if (warnings.length > 0) {
+        console.log('⚠️  Warnings:');
+        warnings.forEach(w => console.log(`  ${w.package}: ${w.reason}`));
+      }
+
+      // Create backup using BackupManager
+      let backupPath: string | undefined;
+      if (options.backup !== false) {
+        backupPath = await this.createBackup(projectPath);
+        result.backupPath = backupPath;
+        console.log(`💾 Backup created: ${backupPath}`);
+      }
+
+      // If dry run, just return what would be updated
+      if (options.dryRun) {
+        result.updated = selectedUpdates;
+        return result;
+      }
+
+      // Run pre-update tests if available
+      if (options.runTests !== false) {
+        console.log('🧪 Running pre-update tests...');
+        const testResult = await TestRunner.runPreUpdateTests(projectPath);
+        if (!testResult.success) {
+          result.success = false;
+          result.errors?.push(`Pre-update tests failed: ${testResult.output}`);
+          return result;
+        }
+        console.log('✅ Pre-update tests passed');
+      }
+
+      // Update each package
+      for (const update of selectedUpdates) {
+        try {
+          console.log(`📦 Updating ${update.name} (${update.currentVersion} → ${update.targetVersion})`);
+          await this.updateSinglePackage(update.name, projectPath);
+          
+          result.updated.push({
+            ...update,
+            currentVersion: update.currentVersion,
+            targetVersion: update.targetVersion
+          });
+          console.log(`✅ Updated ${update.name}`);
+        } catch (error) {
+          result.failed.push({
+            ...update,
+            currentVersion: update.currentVersion,
+            targetVersion: update.targetVersion
+          });
+          result.errors?.push(`Failed to update ${update.name}: ${error}`);
+          console.log(`❌ Failed to update ${update.name}: ${error}`);
+        }
+      }
+
+      // Post-update validation
+      const postValidationErrors = await UpdateValidator.validatePostUpdateState(projectPath);
+      if (postValidationErrors.some(e => e.severity === 'error')) {
+        result.success = false;
+        result.errors?.push(...postValidationErrors.map(e => `Post-update error: ${e.package}: ${e.reason}`));
+      }
+
+      // Run post-update tests if available
+      if (options.runTests !== false && result.success) {
+        console.log('🧪 Running post-update tests...');
+        const testResult = await TestRunner.runPostUpdateTests(projectPath);
+        if (!testResult.success) {
+          result.success = false;
+          result.errors?.push(`Post-update tests failed: ${testResult.output}`);
+          console.log('❌ Post-update tests failed - consider rollback');
+        } else {
+          console.log('✅ Post-update tests passed');
+        }
+      }
+
+      // Cleanup old backups
+      await BackupManager.cleanupBackups(5);
+
+      return result;
+    } catch (error) {
+      result.success = false;
+      result.errors?.push(`Update operation failed: ${error}`);
+      return result;
+    }
+  }
+
+  /**
+   * Create backup of package.json and package-lock.json
+   * @param projectPath - Path to the project directory
+   * @returns Promise<string> - Path to backup directory
+   */
+  async createBackup(projectPath: string = process.cwd()): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupDir = `${projectPath}/.depsver-backup-${timestamp}`;
+    
+    try {
+      await this.fsModule.mkdir(backupDir, { recursive: true });
+      
+      // Backup package.json
+      const packageJsonPath = `${projectPath}/package.json`;
+      const packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
+      await this.fsModule.writeFile(`${backupDir}/package.json`, packageJsonContent);
+      
+      // Backup package-lock.json
+      const packageLockPath = `${projectPath}/package-lock.json`;
+      const packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
+      await this.fsModule.writeFile(`${backupDir}/package-lock.json`, packageLockContent);
+      
+      return backupDir;
+    } catch (error) {
+      throw wrapError(error, 'Failed to create backup') as FileSystemError;
+    }
+  }
+
+  /**
+   * Restore backup from specified directory
+   * @param backupPath - Path to backup directory
+   * @param projectPath - Path to the project directory
+   */
+  async restoreBackup(backupPath: string, projectPath: string = process.cwd()): Promise<void> {
+    try {
+      // Restore package.json
+      const packageJsonContent = await this.fsModule.readFile(`${backupPath}/package.json`, 'utf-8');
+      await this.fsModule.writeFile(`${projectPath}/package.json`, packageJsonContent);
+      
+      // Restore package-lock.json
+      const packageLockContent = await this.fsModule.readFile(`${backupPath}/package-lock.json`, 'utf-8');
+      await this.fsModule.writeFile(`${projectPath}/package-lock.json`, packageLockContent);
+    } catch (error) {
+      throw wrapError(error, 'Failed to restore backup') as FileSystemError;
+    }
+  }
+
+  /**
+   * Validate if a package update is safe
+   * @param packageName - Name of the package to validate
+   * @param version - Target version
+   * @returns Promise<boolean> - True if update is valid
+   */
+  async validateUpdate(packageName: string, version: string): Promise<boolean> {
+    try {
+      // Check if package exists in registry
+      const latestVersions = await fetchLatestVersions([packageName]);
+      const latestVersion = latestVersions.get(packageName);
+      
+      if (!latestVersion) {
+        return false;
+      }
+      
+      // Validate version format
+      if (!semver.valid(version)) {
+        return false;
+      }
+      
+      // Check if version is available (not newer than latest)
+      if (semver.gt(version, latestVersion)) {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Helper method to determine update type
+   * @private
+   */
+  private getUpdateType(current: string, target: string): 'patch' | 'minor' | 'major' {
+    if (!semver.valid(current) || !semver.valid(target)) {
+      return 'patch';
+    }
+    
+    if (semver.major(target) > semver.major(current)) {
+      return 'major';
+    } else if (semver.minor(target) > semver.minor(current)) {
+      return 'minor';
+    } else {
+      return 'patch';
+    }
+  }
+
+  /**
+   * Helper method to update a single package using npm
+   * @private
+   */
+  private async updateSinglePackage(packageName: string, projectPath: string = process.cwd()): Promise<void> {
+    try {
+      await execAsync(`npm install ${packageName}@latest`, { cwd: projectPath });
+    } catch (error) {
+      throw new Error(`npm install failed for ${packageName}: ${error}`);
+    }
   }
 }

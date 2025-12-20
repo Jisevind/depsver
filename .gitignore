@@ -3,6 +3,9 @@ CODEBASE.md
 *-plan.md
 test-files/
 local-docs/
+%USERPROFILE%/
+*backup*
+*github.com*
 
 # Dependencies
 node_modules/

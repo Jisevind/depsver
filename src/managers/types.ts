@@ -48,6 +48,62 @@ export interface ProgressCallbacks {
   stop: () => void;
 }
 
+export interface UpdateOptions {
+  interactive?: boolean;
+  safeOnly?: boolean;
+  preview?: boolean;
+  includeDev?: boolean;
+  dryRun?: boolean;
+  backup?: boolean;
+  runTests?: boolean;
+}
+
+export interface PackageUpdate {
+  name: string;
+  currentVersion: string;
+  targetVersion: string;
+  updateType: 'patch' | 'minor' | 'major';
+  category: 'safe' | 'major' | 'blocked';
+  blocker?: string;
+  changelog?: string;
+  securityNotes?: string[];
+}
+
+export interface UpdateResult {
+  success: boolean;
+  updated: PackageUpdate[];
+  failed: PackageUpdate[];
+  blocked: PackageUpdate[];
+  backupPath?: string;
+  errors?: string[];
+}
+
+export interface UpdatePlan {
+  packages: PackageUpdate[];
+  categories: {
+    safe: PackageUpdate[];
+    major: PackageUpdate[];
+    blocked: PackageUpdate[];
+  };
+  estimatedTime: number;
+  risks: string[];
+  totalPackages: number;
+}
+
+export interface BackupInfo {
+  path: string;
+  timestamp: Date;
+  packageJsonHash: string;
+  packageLockHash: string;
+}
+
+export interface UpdateValidationError {
+  package: string;
+  version: string;
+  reason: string;
+  severity: 'warning' | 'error';
+}
+
 export interface DependencyManager {
   detect(directory: string): Promise<boolean>;
 
@@ -55,4 +111,23 @@ export interface DependencyManager {
     directory: string,
     onProgress?: ProgressCallbacks
   ): Promise<AnalysisReport>;
+
+  previewUpdate(options: UpdateOptions): Promise<UpdatePlan>;
+  update(selectedPackages: string[], options: UpdateOptions): Promise<UpdateResult>;
+  createBackup(): Promise<string>;
+  restoreBackup(backupPath: string): Promise<void>;
+  validateUpdate(packageName: string, version: string): Promise<boolean>;
 }
+
+// Re-export blocker types for wider use
+export type { 
+  BlockerAnalysis, 
+  BlockerInfo, 
+  ResolutionStep, 
+  ResolutionAction, 
+  ResolutionImpact, 
+  ResolutionPath, 
+  UpdateOrder, 
+  UpdatePhase, 
+  ResolutionWorkflow 
+} from '../utils/blocker.js';

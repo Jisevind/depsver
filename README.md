@@ -11,6 +11,8 @@ A TypeScript CLI tool for analyzing project dependencies and generating AI-ready
 - **Dependency Analysis**: Analyzes your npm project's dependencies and their current versions
 - **Upgrade Classification**: Categorizes dependencies into safe upgrades, blocked upgrades, and major version jumps
 - **Blocker Detection**: Identifies which packages are preventing other packages from being upgraded using optimized O(n + m) algorithms
+- **Interactive Updates**: **NEW** - Interactively select which packages to update with smart categorization
+- **Safe Update Management**: **NEW** - Preview updates, create automatic backups, and rollback functionality
 - **Progress Tracking**: Shows real-time progress when fetching latest versions from the npm registry
 - **Multiple Output Formats**: Supports console output, file output, and clipboard copying
 - **AI-Ready Reports**: Generates markdown reports optimized for AI assistants and code review tools
@@ -73,10 +75,83 @@ Copy report to clipboard:
 depsver --clip
 ```
 
+### Update Dependencies
+
+**NEW**: depsver now supports interactive dependency updates with safety features!
+
+Preview available updates:
+
+```bash
+depsver update --preview
+```
+
+Interactive package selection:
+
+```bash
+depsver update --interactive
+```
+
+Safe updates only (no major versions):
+
+```bash
+depsver update --safe-only
+```
+
+Dry run (show what would be updated):
+
+```bash
+depsver update --dry-run
+```
+
+Rollback to previous backup:
+
+```bash
+depsver rollback .depsver-backup-2023-12-19T22-00-00-000Z
+```
+
+#### Update Options
+
+- `-i, --interactive` - Interactive package selection with numbered menu
+- `-s, --safe-only` - Only show safe updates (patch/minor versions)
+- `-p, --preview` - Preview changes without applying them
+- `--include-dev` - Include dev dependencies in updates
+- `--dry-run` - Show what would be updated without making changes
+- `--no-tests` - Skip running tests before/after updates
+
+#### Safety Features
+
+- **Automatic Backups**: Creates timestamped backups before any updates
+- **Rollback Support**: Restore from backup if updates cause issues
+- **Smart Categorization**: Separates safe, major, and blocked updates
+- **Risk Assessment**: Identifies potential breaking changes and blockers
+- **Pre/Post-Update Validation**: Validates package files and dependencies
+- **Test Integration**: Automatically runs tests before and after updates
+- **Dependency Conflict Detection**: Prevents incompatible updates
+- **Git Integration**: Checks for uncommitted changes before updating
+
+#### Advanced Features
+
+- **Blocker Resolution**: **NEW** - Intelligent analysis and resolution of dependency conflicts
+- **Smart Update Ordering**: **NEW** - Optimized update sequence to minimize conflicts
+- **Interactive Resolution Workflows**: **NEW** - Step-by-step guidance for complex updates
+- **Comprehensive Reporting**: **NEW** - Detailed reports with risk assessment and recommendations
+- **Multiple Export Formats**: **NEW** - JSON, CSV, and Markdown report generation
+- **Dependency Graph Analysis**: **NEW** - Deep analysis of dependency relationships
+
+#### Performance & UX Enhancements
+
+- **Optimized Performance**: **NEW** - Caching, batching, and parallel processing for faster analysis
+- **Memory Management**: **NEW** - Efficient memory usage with monitoring and optimization
+- **Enhanced Progress Tracking**: **NEW** - Real-time progress with performance metrics
+- **Smart Error Handling**: **NEW** - Contextual error messages with actionable solutions
+- **Interactive UI**: **NEW** - Rich terminal interface with smart selections and confirmations
+- **Contextual Help**: **NEW** - Operation-specific help and pro tips
+
 ### Help
 
 ```bash
 depsver --help
+depsver update --help
 ```
 
 ## Report Sections
@@ -165,11 +240,12 @@ The tool identifies upgrade blockers by:
 src/
 ├── cli.ts              # CLI entry point and command handling
 ├── managers/
-│   ├── NpmManager.ts   # npm-specific dependency analysis
+│   ├── NpmManager.ts   # npm-specific dependency analysis and updates
 │   └── types.ts        # Type definitions for dependency managers
 └── utils/
     ├── errors.ts       # Custom error classes and error handling
     ├── formatter.ts    # Report formatting utilities
+    ├── interactive.ts  # Interactive menu system for updates
     └── registry.ts     # npm registry API utilities with caching
 
 test/
