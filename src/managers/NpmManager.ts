@@ -516,7 +516,13 @@ export class NpmManager implements DependencyManager {
           result.errors?.push(`Pre-update tests failed: ${testResult.output}`);
           return result;
         }
-        console.log('✅ Pre-update tests passed');
+        
+        // Check if tests were actually run or skipped
+        if (testResult.output.includes('No test script found - skipping pre-update tests')) {
+          console.log('ℹ️  No test script found - skipping pre-update tests');
+        } else {
+          console.log('✅ Pre-update tests passed');
+        }
       }
 
       // Update each package
@@ -558,7 +564,12 @@ export class NpmManager implements DependencyManager {
           result.errors?.push(`Post-update tests failed: ${testResult.output}`);
           console.log('❌ Post-update tests failed - consider rollback');
         } else {
-          console.log('✅ Post-update tests passed');
+          // Check if tests were actually run or skipped
+          if (testResult.output.includes('No test script found - skipping pre-update tests')) {
+            console.log('ℹ️  No test script found - skipping post-update tests');
+          } else {
+            console.log('✅ Post-update tests passed');
+          }
         }
       }
 
