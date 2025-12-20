@@ -2,23 +2,42 @@
 
 > **⚠️ Disclaimer**: This tool provides guidance and analysis for dependency management, but all dependency updates should be thoroughly tested in your specific environment before applying to production. Always review breaking changes and test updates in a development environment first.
 
-A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports. This tool helps you understand your project's dependency landscape by analyzing package.json and package-lock.json files, checking for outdated packages, and identifying potential upgrade blockers with comprehensive error handling and performance optimizations.
+A sophisticated TypeScript CLI tool for intelligent dependency management and analysis. This tool provides comprehensive dependency insights with advanced blocker resolution, performance optimizations, and safety features for professional development workflows.
 
-**Current Version: 1.0.0** - Now available as a stable CLI tool with executable `depsver` command.
+**Current Version: 1.0.0** - Production-ready with advanced dependency management capabilities.
 
-## Features
+## Core Features
 
-- **Dependency Analysis**: Analyzes your npm project's dependencies and their current versions
-- **Upgrade Classification**: Categorizes dependencies into safe upgrades, blocked upgrades, and major version jumps
-- **Blocker Detection**: Identifies which packages are preventing other packages from being upgraded using optimized O(n + m) algorithms
-- **Interactive Updates**: **NEW** - Interactively select which packages to update with smart categorization
-- **Safe Update Management**: **NEW** - Preview updates, create automatic backups, and rollback functionality
-- **Progress Tracking**: Shows real-time progress when fetching latest versions from the npm registry
-- **Multiple Output Formats**: Supports console output, file output, and clipboard copying
-- **AI-Ready Reports**: Generates markdown reports optimized for AI assistants and code review tools
-- **Comprehensive Error Handling**: Provides detailed error messages with actionable suggestions for common issues
-- **Performance Optimizations**: Features caching, retry logic, and concurrent processing for faster analysis
-- **Type Safety**: Full TypeScript support with proper interfaces for package-lock.json parsing
+### **Intelligent Dependency Analysis**
+- **Multi-stage Analysis**: Optimized two-stage fetching process for top-level and transitive dependencies
+- **Smart Blocker Detection**: O(n + m) algorithm for efficient dependency conflict resolution
+- **Upgrade Classification**: Intelligent categorization into safe updates, major jumps, and blocked upgrades
+- **Real-time Progress Tracking**: Live progress bars with performance metrics during registry fetching
+
+### **Advanced Update Management**
+- **Interactive Package Selection**: Rich terminal interface with numbered menus and smart filtering
+- **Comprehensive Validation**: Pre/post-update validation with dependency conflict detection
+- **Automatic Backup System**: Timestamped backups with integrity verification and cleanup
+- **Test Integration**: Automated pre/post-update test execution with failure detection
+- **Git Integration**: Checks for uncommitted changes before performing updates
+
+### **Professional Safety Features**
+- **Rollback Capabilities**: Instant restoration from previous backups with validation
+- **Risk Assessment**: Detailed risk analysis for major version updates and blocking dependencies
+- **Dependency Graph Analysis**: Deep understanding of transitive dependencies and constraints
+- **Smart Update Ordering**: Optimized update sequences to minimize conflicts
+
+### **Performance & Reliability**
+- **Memory Optimization**: Efficient memory usage with monitoring and cleanup
+- **Concurrent Processing**: Parallel registry requests with adaptive rate limiting
+- **Intelligent Caching**: In-memory caching with TTL to reduce redundant API calls
+- **Comprehensive Error Handling**: Contextual error messages with actionable solutions
+
+### **Developer Experience**
+- **Multiple Output Formats**: Console, file, and clipboard support
+- **AI-Ready Reports**: Markdown reports optimized for AI assistants and code review
+- **Rich Interactive UI**: Contextual help, package details, and smart selections
+- **Type Safety**: Full TypeScript implementation with comprehensive interfaces
 
 ## Installation
 
@@ -229,25 +248,58 @@ The tool identifies upgrade blockers by:
 - `npm run test` - Run tests with Vitest
 - `npm run dev` - Run in development mode with ts-node
 
-### Project Structure
+### Project Architecture
 
 ```
 src/
-├── cli.ts              # CLI entry point and command handling
+├── cli.ts                    # CLI entry point and command orchestration
 ├── managers/
-│   ├── NpmManager.ts   # npm-specific dependency analysis and updates
-│   └── types.ts        # Type definitions for dependency managers
+│   ├── NpmManager.ts         # Core npm dependency analysis and update engine
+│   └── types.ts              # Comprehensive type definitions and interfaces
 └── utils/
-    ├── errors.ts       # Custom error classes and error handling
-    ├── formatter.ts    # Report formatting utilities
-    ├── interactive.ts  # Interactive menu system for updates
-    └── registry.ts     # npm registry API utilities with caching
+    ├── backup.ts             # Backup management with integrity verification
+    ├── blocker.ts            # Advanced blocker detection and resolution algorithms
+    ├── errors.ts             # Custom error classes with contextual handling
+    ├── formatter.ts          # Report formatting and output generation
+    ├── interactive.ts        # Rich interactive UI with package selection
+    ├── performance.ts        # Performance monitoring and optimization
+    ├── registry.ts           # npm registry API with caching and retry logic
+    ├── reporting.ts          # Advanced reporting with multiple formats
+    ├── ux.ts                 # User experience enhancements and helpers
+    └── validation.ts         # Comprehensive validation and test integration
 
 test/
-├── basic.test.ts       # Basic test suite
-├── managers/           # Manager-specific tests
-└── utils/              # Utility function tests
+├── basic.test.ts             # Core functionality tests
+├── explicit.test.ts          # Explicit dependency resolution tests
+├── simple.test.js/.ts        # Simple integration tests
+├── managers/                # Manager-specific test suites
+│   └── NpmManager.*.test.ts  # NpmManager comprehensive tests
+├── performance/              # Performance and optimization tests
+└── utils/                    # Utility function unit tests
+    └── registry.test.ts      # Registry API tests
 ```
+
+### Core Architecture Components
+
+**Dependency Management Engine**
+- **NpmManager**: Central orchestrator for all npm operations
+- **Multi-stage Analysis**: Optimized fetching with intelligent dependency selection
+- **Blocker Resolution**: O(n + m) algorithms for conflict detection and resolution
+
+**Interactive User Interface**
+- **InteractiveMenu**: Rich terminal interface with numbered selections
+- **PackageFilter**: Smart filtering and categorization utilities
+- **Progress Tracking**: Real-time progress bars with performance metrics
+
+**Safety & Validation System**
+- **UpdateValidator**: Comprehensive pre/post-update validation
+- **TestRunner**: Automated test integration with failure detection
+- **BackupManager**: Secure backup creation with integrity verification
+
+**Performance Optimization**
+- **Memory Management**: Efficient resource usage and monitoring
+- **Concurrent Processing**: Parallel registry requests with rate limiting
+- **Intelligent Caching**: TTL-based caching to minimize API calls
 
 ### Contributing
 
