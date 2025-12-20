@@ -47,16 +47,11 @@ npm run build
 
 ### Basic Usage
 
-Analyze the current directory:
+Run depsver in your project directory:
 
 ```bash
+cd /path/to/your/project
 depsver
-```
-
-Analyze a specific directory:
-
-```bash
-depsver /path/to/your/project
 ```
 
 **Note**: The `depsver` command is available after global installation (`npm install -g depsver`) or can be run with `npx depsver` for one-time use.
@@ -210,7 +205,7 @@ Displays the latest available versions from the npm registry for comparison.
 
 ## How It Works
 
-1. **Detection**: Verifies that the target directory contains both `package.json` and `package-lock.json` files
+1. **Detection**: Verifies that the current directory contains both `package.json` and `package-lock.json` files
 2. **Analysis**: Parses both files to understand the dependency structure
 3. **Version Checking**: Fetches the latest versions from the npm registry (with progress tracking)
 4. **Classification**: Categorizes each dependency based on upgrade safety and potential blockers

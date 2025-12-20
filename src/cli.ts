@@ -23,24 +23,23 @@ program
   .name('depsver')
   .description('Analyzes project dependencies and generates an AI-ready report')
   .version('1.0.0')
-  .argument('[path]', 'directory to analyze', '.')
   .option('-o, --output <file>', 'output file for results')
   .option('--clip', 'copy results to clipboard')
-  .action(async (pathArg, options) => {
+  .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
     
     try {
-      // Get absolute path
-      const resolvedPath = path.resolve(pathArg);
+      // Use current working directory
+      const currentDir = process.cwd();
       
       // Instantiate manager
       const manager = new NpmManager();
       
       // Check if this is a valid npm project
       try {
-        const isValid = await manager.detect(resolvedPath);
+        const isValid = await manager.detect(currentDir);
         if (!isValid) {
-          throw new InvalidProjectError(resolvedPath);
+          throw new InvalidProjectError(currentDir);
         }
       } catch (error) {
         if (error instanceof InvalidProjectError) {
@@ -70,7 +69,7 @@ program
       };
       
       // Run analysis with progress tracking
-      const report = await manager.analyze(resolvedPath, onProgress);
+      const report = await manager.analyze(currentDir, onProgress);
       
       // Format report
       const markdownReport = formatReport(report);
@@ -126,7 +125,6 @@ program
 // Update command
 program
   .command('update')
-  .argument('[path]', 'directory to analyze', '.')
   .description('Interactively update dependencies')
   .option('-i, --interactive', 'Interactive package selection')
   .option('-s, --safe-only', 'Only show safe updates')
@@ -134,21 +132,21 @@ program
   .option('--include-dev', 'Include dev dependencies')
   .option('--dry-run', 'Show what would be updated')
   .option('--no-tests', 'Skip running tests before/after updates')
-  .action(async (pathArg, options) => {
+  .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
     
     try {
-      // Get absolute path
-      const resolvedPath = path.resolve(pathArg);
+      // Use current working directory
+      const currentDir = process.cwd();
       
       // Instantiate manager
       const manager = new NpmManager();
       
       // Check if this is a valid npm project
       try {
-        const isValid = await manager.detect(resolvedPath);
+        const isValid = await manager.detect(currentDir);
         if (!isValid) {
-          throw new InvalidProjectError(resolvedPath);
+          throw new InvalidProjectError(currentDir);
         }
       } catch (error) {
         if (error instanceof InvalidProjectError) {
@@ -190,7 +188,7 @@ program
       
       // Preview updates - FIXED: Pass the target directory
       console.log('Analyzing available updates...');
-      const plan = await manager.previewUpdate(updateOptions, onProgress, resolvedPath);
+      const plan = await manager.previewUpdate(updateOptions, onProgress, currentDir);
       
       // Stop progress bar
       if (progressBar) {
@@ -224,7 +222,7 @@ program
       console.log(`\n📦 Updating ${selectedPackages.length} packages: ${selectedPackages.join(', ')}`);
       
       // Perform updates
-      const result = await manager.update(selectedPackages, updateOptions, resolvedPath);
+      const result = await manager.update(selectedPackages, updateOptions, currentDir);
       
       // Display results
       displayUpdateResults(result);
