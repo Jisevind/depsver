@@ -27,14 +27,18 @@ program
   .option('--clip', 'copy results to clipboard')
   .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
-    
+
+    // Check for npm config environment variable as fallback for --clip
+    // This handles cases like `npm run dev --clip` where the flag isn't passed to the script
+    const shouldClip = options.clip || process.env.npm_config_clip === 'true';
+
     try {
       // Use current working directory
       const currentDir = process.cwd();
-      
+
       // Instantiate manager
       const manager = new NpmManager();
-      
+
       // Check if this is a valid npm project
       try {
         const isValid = await manager.detect(currentDir);
@@ -48,13 +52,13 @@ program
         }
         throw error;
       }
-      
+
       // Create progress bar with stderr stream to avoid corrupting output
       progressBar = new cliProgress.SingleBar({
         stream: process.stderr,
         format: 'Fetching latest versions... {bar} {value}/{total} packages'
       });
-      
+
       // Create progress callbacks
       const onProgress = {
         start: (total: number, payload: string) => {
@@ -67,15 +71,15 @@ program
           progressBar!.stop();
         }
       };
-      
+
       // Run analysis with progress tracking
       const report = await manager.analyze(currentDir, onProgress);
-      
+
       // Format report
       const markdownReport = formatReport(report);
-      
+
       // Handle output
-      if (options.clip) {
+      if (shouldClip) {
         try {
           await clipboardy.write(markdownReport);
           console.log('Report copied to clipboard!');
@@ -89,7 +93,7 @@ program
           // Display Actionable Insights to console (plain text format)
           const actionableInsightsConsole = formatActionableInsightsConsole(report);
           console.log(actionableInsightsConsole);
-          
+
           // Write full report to file
           await fs.writeFile(options.output, markdownReport);
           console.log(`Report written to file: ${options.output}`);
@@ -101,16 +105,16 @@ program
       } else {
         console.log(markdownReport);
       }
-      
+
     } catch (error) {
       // Handle known DepsverErrors with proper formatting
       if (error instanceof InvalidProjectError ||
-          error instanceof ClipboardError ||
-          error instanceof FileSystemError) {
+        error instanceof ClipboardError ||
+        error instanceof FileSystemError) {
         console.error(formatError(error));
         process.exit(1);
       }
-      
+
       // Handle any other errors
       console.error(formatError(wrapError(error, 'Analysis failed')));
       process.exit(1);
@@ -134,14 +138,14 @@ program
   .option('--no-tests', 'Skip running tests before/after updates')
   .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
-    
+
     try {
       // Use current working directory
       const currentDir = process.cwd();
-      
+
       // Instantiate manager
       const manager = new NpmManager();
-      
+
       // Check if this is a valid npm project
       try {
         const isValid = await manager.detect(currentDir);
@@ -155,13 +159,13 @@ program
         }
         throw error;
       }
-      
+
       // Create progress bar with stderr stream to avoid corrupting output
       progressBar = new cliProgress.SingleBar({
         stream: process.stderr,
         format: 'Fetching latest versions... {bar} {value}/{total} packages'
       });
-      
+
       // Create progress callbacks
       const onProgress = {
         start: (total: number, payload: string) => {
@@ -174,7 +178,7 @@ program
           progressBar!.stop();
         }
       };
-      
+
       // Create update options
       const updateOptions: UpdateOptions = {
         interactive: options.interactive,
@@ -185,25 +189,25 @@ program
         backup: true, // Default to backup for safety
         runTests: options.tests !== false // Default to running tests
       };
-      
+
       // Preview updates - FIXED: Pass the target directory
       console.log('Analyzing available updates...');
       const plan = await manager.previewUpdate(updateOptions, onProgress, currentDir);
-      
+
       // Stop progress bar
       if (progressBar) {
         progressBar.stop();
         progressBar = null;
       }
-      
+
       // Display update plan
       displayUpdatePlan(plan);
-      
+
       if (options.preview || options.dryRun) {
         console.log('\n🔍 Preview mode - no changes will be applied');
         return;
       }
-      
+
       // Interactive selection
       let selectedPackages: string[] = [];
       if (options.interactive) {
@@ -212,21 +216,21 @@ program
         // Select all safe updates by default
         selectedPackages = plan.categories.safe.map(p => p.name);
       }
-      
+
       if (selectedPackages.length === 0) {
         console.log('No packages selected for update.');
         return;
       }
-      
+
       // Confirm updates
       console.log(`\n📦 Updating ${selectedPackages.length} packages: ${selectedPackages.join(', ')}`);
-      
+
       // Perform updates
       const result = await manager.update(selectedPackages, updateOptions, currentDir);
-      
+
       // Display results
       displayUpdateResults(result);
-      
+
     } catch (error) {
       console.error(formatError(wrapError(error, 'Update failed')));
       process.exit(1);
@@ -246,13 +250,13 @@ program
   .action(async (backupPath) => {
     try {
       const manager = new NpmManager();
-      
+
       console.log(`🔄 Restoring from backup: ${backupPath}`);
       await manager.restoreBackup(backupPath);
-      
+
       console.log('✅ Rollback completed successfully');
       console.log('💡 Run "npm install" to ensure all dependencies are properly installed');
-      
+
     } catch (error) {
       console.error(formatError(wrapError(error, 'Rollback failed')));
       process.exit(1);
@@ -265,29 +269,29 @@ program.parse();
 function displayUpdatePlan(plan: any): void {
   console.log('\n📋 Update Plan');
   console.log('================');
-  
+
   console.log(`\n✅ Safe updates: ${plan.categories.safe.length}`);
   plan.categories.safe.forEach((pkg: any) => {
     console.log(`  ${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion} (${pkg.updateType})`);
   });
-  
+
   console.log(`\n⚠️  Major updates: ${plan.categories.major.length}`);
   plan.categories.major.forEach((pkg: any) => {
     console.log(`  ${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion} (major)`);
   });
-  
+
   console.log(`\n🚫 Blocked updates: ${plan.categories.blocked.length}`);
   plan.categories.blocked.forEach((pkg: any) => {
     console.log(`  ${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion} (blocked by ${pkg.blocker})`);
   });
-  
+
   if (plan.risks.length > 0) {
     console.log('\n⚠️  Risks:');
     plan.risks.forEach((risk: string) => {
       console.log(`  • ${risk}`);
     });
   }
-  
+
   console.log(`\n⏱️  Estimated time: ${Math.round(plan.estimatedTime / 60)} minutes`);
 }
 
@@ -303,7 +307,7 @@ async function selectPackagesInteractively(plan: any): Promise<string[]> {
 function displayUpdateResults(result: any): void {
   console.log('\n📊 Update Results');
   console.log('==================');
-  
+
   if (result.success) {
     console.log(`✅ Successfully updated ${result.updated.length} packages:`);
     result.updated.forEach((pkg: any) => {
@@ -312,19 +316,19 @@ function displayUpdateResults(result: any): void {
   } else {
     console.log('❌ Update completed with errors');
   }
-  
+
   if (result.failed.length > 0) {
     console.log(`\n❌ Failed to update ${result.failed.length} packages:`);
     result.failed.forEach((pkg: any) => {
       console.log(`  ${pkg.name}`);
     });
   }
-  
+
   if (result.backupPath) {
     console.log(`\n💾 Backup created at: ${result.backupPath}`);
     console.log('   Use "depsver rollback <path>" to restore if needed');
   }
-  
+
   if (result.errors && result.errors.length > 0) {
     console.log('\n🚨 Errors:');
     result.errors.forEach((error: string) => {
