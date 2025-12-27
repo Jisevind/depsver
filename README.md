@@ -4,7 +4,7 @@
 
 A sophisticated TypeScript CLI tool for intelligent dependency management and analysis. This tool provides comprehensive dependency insights with advanced blocker resolution, performance optimizations, and safety features for professional development workflows.
 
-**Current Version: 1.0.0** - Production-ready with advanced dependency management capabilities and enhanced validation.
+**Current Version: 1.2.0** - Production-ready with advanced dependency management capabilities and enhanced validation.
 
 ## Core Features
 
@@ -357,3 +357,4 @@ For projects with many dependencies, the version fetching has been optimized wit
 - Two-stage fetching: Top-level dependencies first, then selective transitive packages for blocker analysis
 - Enhanced package name extraction with scoped package support (@scope/name)
 - Strict npm naming convention validation (underscores and capital letters not allowed)
+
