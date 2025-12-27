@@ -4,7 +4,7 @@
 
 A sophisticated TypeScript CLI tool for intelligent dependency management and analysis. This tool provides comprehensive dependency insights with advanced blocker resolution, performance optimizations, and safety features for professional development workflows.
 
-**Current Version: 1.0.0** - Production-ready with advanced dependency management capabilities.
+**Current Version: 1.0.0** - Production-ready with advanced dependency management capabilities and enhanced validation.
 
 ## Core Features
 
@@ -16,10 +16,11 @@ A sophisticated TypeScript CLI tool for intelligent dependency management and an
 
 ### **Advanced Update Management**
 - **Interactive Package Selection**: Rich terminal interface with numbered menus and smart filtering
-- **Comprehensive Validation**: Pre/post-update validation with dependency conflict detection
-- **Automatic Backup System**: Timestamped backups with integrity verification and cleanup
-- **Test Integration**: Automated pre/post-update test execution with failure detection
+- **Comprehensive Validation**: Pre/post-update validation with dependency conflict detection, JSON syntax verification, and backup integrity checking
+- **Automatic Backup System**: Timestamped backups with integrity verification, validation before restoration, and automated cleanup
+- **Test Integration**: Automated pre/post-update test execution with intelligent script detection and failure detection
 - **Git Integration**: Checks for uncommitted changes before performing updates
+- **Enhanced Error Handling**: Specific error classes for update failures, restore failures, and validation errors with actionable suggestions
 
 ### **Professional Safety Features**
 - **Rollback Capabilities**: Instant restoration from previous backups with validation
@@ -134,14 +135,15 @@ depsver rollback .depsver-backup-2023-12-19T22-00-00-000Z
 
 #### Safety Features
 
-- **Automatic Backups**: Creates timestamped backups before any updates
-- **Rollback Support**: Restore from backup if updates cause issues
+- **Automatic Backups**: Creates timestamped backups before any updates with integrity verification
+- **Rollback Support**: Restore from backup with pre-restoration validation and post-restore verification
 - **Smart Categorization**: Separates safe, major, and blocked updates
 - **Risk Assessment**: Identifies potential breaking changes and blockers
-- **Pre/Post-Update Validation**: Validates package files and dependencies
-- **Test Integration**: Automatically runs tests before and after updates
-- **Dependency Conflict Detection**: Prevents incompatible updates
+- **Pre/Post-Update Validation**: Validates package files, dependencies, and JSON syntax
+- **Test Integration**: Automatically runs tests before and after updates with intelligent script detection
+- **Dependency Conflict Detection**: Prevents incompatible updates with detailed error reporting
 - **Git Integration**: Checks for uncommitted changes before updating
+- **Enhanced Error Handling**: Context-specific error messages with actionable suggestions for common issues
 
 #### Advanced Features
 
@@ -225,10 +227,13 @@ Displays the latest available versions from the npm registry for comparison.
 ## How It Works
 
 1. **Detection**: Verifies that the current directory contains both `package.json` and `package-lock.json` files
-2. **Analysis**: Parses both files to understand the dependency structure
-3. **Version Checking**: Fetches the latest versions from the npm registry (with progress tracking)
-4. **Classification**: Categorizes each dependency based on upgrade safety and potential blockers
-5. **Reporting**: Generates a comprehensive markdown report with actionable insights
+2. **Validation**: Validates JSON syntax and package structure before analysis
+3. **Two-Stage Analysis**: 
+   - Stage 1: Fetches latest versions for top-level dependencies only
+   - Stage 2: Selectively fetches transitive dependencies only when needed for blocker analysis
+4. **Version Checking**: Fetches the latest versions from the npm registry with progress tracking and intelligent caching
+5. **Classification**: Categorizes each dependency based on upgrade safety and potential blockers using strict npm naming conventions
+6. **Reporting**: Generates a comprehensive markdown report with actionable insights and risk assessment
 
 ## Blocker Detection Algorithm
 
@@ -275,6 +280,9 @@ test/
 ├── managers/                # Manager-specific test suites
 │   └── NpmManager.*.test.ts  # NpmManager comprehensive tests
 ├── performance/              # Performance and optimization tests
+│   └── large-project.test.ts # Large project performance tests
+├── integration/              # Integration tests
+│   └── update-workflow.test.ts # Update workflow integration tests
 └── utils/                    # Utility function unit tests
     └── registry.test.ts      # Registry API tests
 ```
@@ -323,13 +331,16 @@ MIT
 ## Troubleshooting
 
 ### Enhanced Error Handling
-Depsver now provides comprehensive error handling with actionable suggestions for common issues:
+Depsver provides comprehensive error handling with actionable suggestions for common issues:
 
 - **Invalid Project Error**: Ensures you're in a valid npm project directory
 - **Malformed package.json/package-lock.json**: Provides specific guidance for JSON syntax issues
 - **Network Errors**: Offers troubleshooting steps for connectivity and firewall issues
 - **Clipboard Errors**: Suggests alternatives when clipboard access fails
 - **File System Errors**: Helps resolve permission and path issues
+- **Update Failed Error**: Detailed context when package updates fail with recovery suggestions
+- **Restore Failed Error**: Specific guidance when backup restoration fails with validation details
+- **Validation Error**: Comprehensive feedback for package and version validation issues
 
 ### "No package-lock.json found" Error
 Ensure you're running the command in a directory that contains both `package.json` and `package-lock.json` files. If you don't have a lockfile, run `npm install` to generate one.
@@ -343,3 +354,6 @@ For projects with many dependencies, the version fetching has been optimized wit
 - Concurrent processing with adaptive rate limiting
 - O(n + m) blocker detection algorithm for improved performance
 - Progress tracking to show current status
+- Two-stage fetching: Top-level dependencies first, then selective transitive packages for blocker analysis
+- Enhanced package name extraction with scoped package support (@scope/name)
+- Strict npm naming convention validation (underscores and capital letters not allowed)
