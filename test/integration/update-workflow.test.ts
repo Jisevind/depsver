@@ -258,7 +258,7 @@ describe('Update Workflow Integration', () => {
     } as any);
 
     // Spy on updateSinglePackage to force failure (bypass exec mock complexity)
-    vi.spyOn(manager as any, 'updateSinglePackage').mockImplementation(async (pkg: string) => {
+    vi.spyOn(manager as any, 'updateSinglePackage').mockImplementation(async (pkg: any) => {
       if (pkg === 'lodash') {
         throw new Error('Simulation failed');
       }
