@@ -141,6 +141,75 @@ export class InternalError extends DepsverError {
 }
 
 /**
+ * Error thrown when package update fails
+ */
+export class UpdateFailedError extends DepsverError {
+  readonly code = 'UPDATE_FAILED';
+  readonly suggestions = [
+    'Check your internet connection',
+    'Verify the package name and version',
+    'Try running the update manually with npm install',
+    'Check if the package exists in the npm registry'
+  ];
+  
+  constructor(
+    public readonly packageName: string,
+    public readonly currentVersion: string,
+    public readonly targetVersion: string,
+    cause?: Error
+  ) {
+    const message = `Failed to update ${packageName} from ${currentVersion} to ${targetVersion}`;
+    super(message);
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error thrown when backup restoration fails
+ */
+export class RestoreFailedError extends DepsverError {
+  readonly code = 'RESTORE_FAILED';
+  readonly suggestions = [
+    'Verify the backup directory exists and contains valid files',
+    'Check if you have write permissions for the project directory',
+    'Ensure no other processes are modifying package files',
+    'Try manually restoring from backup'
+  ];
+  
+  constructor(
+    public readonly backupPath: string,
+    public readonly projectPath: string,
+    cause?: Error
+  ) {
+    const message = `Failed to restore backup from ${backupPath} to ${projectPath}`;
+    super(message);
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error thrown when validation fails
+ */
+export class ValidationError extends DepsverError {
+  readonly code = 'VALIDATION_FAILED';
+  readonly suggestions = [
+    'Check your package.json syntax',
+    'Ensure package-lock.json is up to date',
+    'Run npm install to fix dependency issues',
+    'Review the specific validation errors for details'
+  ];
+  
+  constructor(
+    public readonly validationErrors: string[],
+    cause?: Error
+  ) {
+    const message = `Validation failed: ${validationErrors.join(', ')}`;
+    super(message);
+    this.cause = cause;
+  }
+}
+
+/**
  * Utility function to format and display errors to users
  */
 export function formatError(error: unknown): string {

@@ -39,7 +39,7 @@ export class UpdateValidator {
       // Check if package exists in registry
       const latestVersions = await fetchLatestVersions([packageName]);
       const latestVersion = latestVersions.get(packageName);
-      
+
       if (!latestVersion) {
         errors.push({
           package: packageName,
@@ -86,7 +86,7 @@ export class UpdateValidator {
   /**
    * Validate multiple package updates
    */
-  static async validateUpdates(updates: PackageUpdate[]): Promise<UpdateValidationError[]> {
+  static async validateUpdates(updates: PackageUpdate[], projectPath: string = process.cwd()): Promise<UpdateValidationError[]> {
     const allErrors: UpdateValidationError[] = [];
 
     // Validate each update individually
@@ -96,7 +96,7 @@ export class UpdateValidator {
     }
 
     // Check for dependency conflicts
-    const dependencyErrors = await this.validateDependencyConflicts(updates);
+    const dependencyErrors = await this.validateDependencyConflicts(updates, projectPath);
     allErrors.push(...dependencyErrors);
 
     // Check for compatibility issues
@@ -113,35 +113,52 @@ export class UpdateValidator {
     const errors: UpdateValidationError[] = [];
 
     try {
-      // Read current package.json to understand dependencies
+      // Read package-lock.json to understand actual dependency graph
       const packageJsonPath = `${projectPath}/package.json`;
+      const packageLockPath = `${projectPath}/package-lock.json`;
+
       const packageJsonExists = await this.fileExists(packageJsonPath);
-      if (!packageJsonExists) {
+      const packageLockExists = await this.fileExists(packageLockPath);
+
+      if (!packageJsonExists || !packageLockExists) {
+        errors.push({
+          package: 'project',
+          version: 'unknown',
+          reason: 'package.json or package-lock.json not found for dependency validation',
+          severity: 'warning'
+        });
         return errors;
       }
 
       const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = JSON.parse(packageJsonContent);
+      const packageLockContent = await fs.readFile(packageLockPath, 'utf-8');
 
-      // Get all dependencies and dev dependencies
-      const allDeps = {
-        ...packageJson.dependencies,
-        ...packageJson.devDependencies
-      };
+      const packageJson = JSON.parse(packageJsonContent);
+      const packageLock = JSON.parse(packageLockContent);
+
+      // Build dependency graph from package-lock.json
+      const dependencyGraph = this.buildDependencyGraph(packageLock);
 
       // Check if any update would break existing dependencies
       for (const update of updates) {
-        const dependents = this.findDependents(update.name, allDeps);
-        
+        const dependents = dependencyGraph.getDependents(update.name);
+
         for (const dependent of dependents) {
-          const requiredRange = allDeps[dependent];
-          if (requiredRange && !semver.satisfies(update.targetVersion, requiredRange)) {
-            errors.push({
-              package: update.name,
-              version: update.targetVersion,
-              reason: `Update would break dependency requirement: ${dependent} requires ${requiredRange}`,
-              severity: 'error'
-            });
+          const dependentInfo = packageLock.packages[`node_modules/${dependent}`] ||
+            packageLock.packages[`node_modules/${dependent}/node_modules/${update.name}`];
+
+          if (dependentInfo) {
+            const requiredRange = dependentInfo.dependencies?.[update.name] ||
+              dependentInfo.peerDependencies?.[update.name];
+
+            if (requiredRange && !semver.satisfies(update.targetVersion, requiredRange)) {
+              errors.push({
+                package: update.name,
+                version: update.targetVersion,
+                reason: `Update would break dependency requirement: ${dependent} requires ${requiredRange}`,
+                severity: 'error'
+              });
+            }
           }
         }
       }
@@ -160,6 +177,41 @@ export class UpdateValidator {
   }
 
   /**
+   * Build dependency graph from package-lock.json
+   */
+  private static buildDependencyGraph(packageLock: any): { getDependents: (packageName: string) => string[] } {
+    const dependentsMap = new Map<string, Set<string>>();
+
+    // Build reverse dependency index
+    for (const [packagePath, packageInfo] of Object.entries(packageLock.packages || {})) {
+      if (packagePath === "") continue; // Skip root package
+
+      const packageName = packagePath.includes('node_modules/') ?
+        packagePath.split('node_modules/').pop() || packagePath : packagePath;
+
+      // Find all dependencies of this package
+      const allDeps = {
+        ...(packageInfo as any).dependencies || {},
+        ...(packageInfo as any).peerDependencies || {}
+      };
+
+      // For each dependency, add this package as a dependent
+      for (const depName of Object.keys(allDeps)) {
+        if (!dependentsMap.has(depName)) {
+          dependentsMap.set(depName, new Set());
+        }
+        dependentsMap.get(depName)!.add(packageName);
+      }
+    }
+
+    return {
+      getDependents: (packageName: string) => {
+        return Array.from(dependentsMap.get(packageName) || []);
+      }
+    };
+  }
+
+  /**
    * Validate compatibility between selected updates
    */
   private static async validateCompatibility(updates: PackageUpdate[]): Promise<UpdateValidationError[]> {
@@ -167,7 +219,7 @@ export class UpdateValidator {
 
     // Check for major version jumps that might be incompatible
     const majorUpdates = updates.filter(u => u.updateType === 'major');
-    
+
     for (const update of majorUpdates) {
       // Add warning for major updates
       errors.push({
@@ -182,7 +234,7 @@ export class UpdateValidator {
     const incompatibleCombos = this.getIncompatibleCombinations();
     for (const combo of incompatibleCombos) {
       const selectedUpdates = updates.filter(u => combo.packages.includes(u.name));
-      
+
       if (selectedUpdates.length === combo.packages.length) {
         errors.push({
           package: combo.packages.join(', '),
@@ -247,7 +299,7 @@ export class UpdateValidator {
           const { exec } = await import('child_process');
           const { promisify } = await import('util');
           const execAsync = promisify(exec);
-          
+
           const { stdout } = await execAsync('git status --porcelain package.json package-lock.json', { cwd: projectPath });
           if (stdout.trim()) {
             errors.push({
@@ -316,7 +368,7 @@ export class UpdateValidator {
       try {
         const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
         const packageJson = JSON.parse(packageJsonContent);
-        
+
         // Basic consistency check
         if (packageJson.dependencies && typeof packageJson.dependencies !== 'object') {
           errors.push({
@@ -349,7 +401,7 @@ export class UpdateValidator {
     if (!packageName || packageName.trim() === '') {
       return false;
     }
-    
+
     // Basic npm package name validation
     const npmPackageNameRegex = /^(@[a-z0-9-_.]+\/[a-z0-9-_.]+|[a-z0-9-_.]+)$/;
     return npmPackageNameRegex.test(packageName);
@@ -360,7 +412,7 @@ export class UpdateValidator {
    */
   private static findDependents(packageName: string, dependencies: Record<string, string>): string[] {
     const dependents: string[] = [];
-    
+
     for (const [dep, range] of Object.entries(dependencies)) {
       // This is a simplified check - in practice, you'd need to analyze the actual dependency graph
       // For now, we'll just check if the dependency name appears in the range (not accurate)
@@ -368,14 +420,14 @@ export class UpdateValidator {
         dependents.push(dep);
       }
     }
-    
+
     return dependents;
   }
 
   /**
    * Get known incompatible package combinations
    */
-  private static getIncompatibleCombinations(): Array<{packages: string[], reason: string}> {
+  private static getIncompatibleCombinations(): Array<{ packages: string[], reason: string }> {
     return [
       {
         packages: ['react', 'react-dom'],
@@ -412,15 +464,15 @@ export class TestRunner {
   /**
    * Run tests before updates
    */
-  static async runPreUpdateTests(projectPath: string = process.cwd()): Promise<{success: boolean, output: string}> {
+  static async runPreUpdateTests(projectPath: string = process.cwd()): Promise<{ success: boolean, output: string }> {
     const originalCwd = process.cwd();
-    
+
     try {
       // Check if npm test script exists in target project
       const packageJsonPath = `${projectPath}/package.json`;
       const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
       const packageJson = JSON.parse(packageJsonContent);
-      
+
       if (!packageJson.scripts || !packageJson.scripts.test) {
         return {
           success: true,
@@ -435,17 +487,17 @@ export class TestRunner {
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
-      
+
       const { stdout, stderr } = await execAsync('npm test', { timeout: 60000 });
-      
+
       // Check if tests actually passed by looking for test failure indicators
       const output = stdout + (stderr ? '\n' + stderr : '');
-      const hasFailures = output.includes('FAIL') || 
-                         output.includes('Failed Tests') || 
-                         output.includes('❌') ||
-                         output.includes('AssertionError') ||
-                         output.includes('Test failed') ||
-                         output.includes('× failed');
+      const hasFailures = output.includes('FAIL') ||
+        output.includes('Failed Tests') ||
+        output.includes('❌') ||
+        output.includes('AssertionError') ||
+        output.includes('Test failed') ||
+        output.includes('× failed');
 
       if (hasFailures) {
         return {
@@ -453,7 +505,7 @@ export class TestRunner {
           output: `Tests failed:\n${output}`
         };
       }
-      
+
       return {
         success: true,
         output: output
@@ -473,9 +525,9 @@ export class TestRunner {
   /**
    * Run tests after updates
    */
-  static async runPostUpdateTests(projectPath: string = process.cwd()): Promise<{success: boolean, output: string}> {
+  static async runPostUpdateTests(projectPath: string = process.cwd()): Promise<{ success: boolean, output: string }> {
     const originalCwd = process.cwd();
-    
+
     try {
       // Change to target project directory
       process.chdir(projectPath);
@@ -484,9 +536,9 @@ export class TestRunner {
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
-      
+
       await execAsync('npm install', { timeout: 120000 });
-      
+
       // Then run tests
       return await this.runPreUpdateTests(projectPath);
 

@@ -12,6 +12,9 @@ import {
   MalformedPackageLockError,
   FileSystemError,
   NetworkError,
+  UpdateFailedError,
+  RestoreFailedError,
+  ValidationError,
   wrapError
 } from '../utils/errors.js';
 
@@ -24,9 +27,49 @@ const execAsync = promisify(exec);
  * e.g., "node_modules/@types/node" -> "@types/node"
  */
 export function extractPackageName(packagePath: string): string {
+  // Handle empty or invalid paths
+  if (!packagePath || packagePath.trim() === '') {
+    return '';
+  }
+
+  // Handle paths that end with just "node_modules" or "node_modules/"
+  if (packagePath === 'node_modules' || packagePath === 'node_modules/') {
+    return '';
+  }
+
+  // Split by 'node_modules/' and get the last part
   const parts = packagePath.split('node_modules/');
-  // The last part will always be the package name
-  return parts[parts.length - 1] || '';
+  if (parts.length < 2) {
+    return '';
+  }
+
+  const lastPart = parts[parts.length - 1];
+
+  // If the last part contains multiple path segments, extract only the final segment
+  if (!lastPart) return '';
+  const segments = lastPart.split('/');
+
+  // For scoped packages like @types/node, we need to preserve the @scope/package format
+  // But only if it's first segment after node_modules
+  if (segments[0] && segments[0].startsWith('@')) {
+    // If this is a scoped package at first level with exactly 2 segments, return the full scoped name
+    if (segments.length === 1) {
+      return segments[0];
+    }
+    // For @types/node, segments would be ['@types', 'node'], so we need to recombine
+    if (segments.length >= 2 && segments[0] && segments[0].startsWith('@')) {
+      // Check if this looks like a scoped package (second segment doesn't contain a slash)
+      if (segments.length === 2 && segments[1] && !segments[1].includes('/')) {
+        return `${segments[0]}/${segments[1]}`;
+      }
+      // If there are more segments, this is likely a nested structure, return the last segment
+      return segments[segments.length - 1] || '';
+    }
+    // Default to last segment for nested structures
+    return segments[segments.length - 1] || '';
+  }
+
+  return segments[segments.length - 1] || '';
 }
 
 /**
@@ -39,13 +82,17 @@ export function isValidPackageName(packageName: string): boolean {
   if (!packageName || packageName.trim() === '') {
     return false;
   }
-  
+
+  // Trim whitespace
+  const trimmedName = packageName.trim();
+
   // Basic npm package name validation
-  // Package names can contain lowercase letters, numbers, hyphens, underscores, and dots
+  // Package names can contain lowercase letters, numbers, hyphens, and dots
+  // Underscores and capital letters are NOT allowed
   // Scoped packages start with @ and contain a slash
-  const npmPackageNameRegex = /^(@[a-z0-9-_.]+\/[a-z0-9-_.]+|[a-z0-9-_.]+)$/;
-  
-  return npmPackageNameRegex.test(packageName);
+  const npmPackageNameRegex = /^(@[a-z0-9-.]+\/[a-z0-9-.]+|[a-z0-9-.]+)$/;
+
+  return npmPackageNameRegex.test(trimmedName);
 }
 
 /**
@@ -67,11 +114,11 @@ export class NpmManager implements DependencyManager {
     try {
       const packageJsonPath = `${directory}/package.json`;
       const packageLockPath = `${directory}/package-lock.json`;
-      
+
       // Check if both files exist
       await this.fsModule.access(packageJsonPath);
       await this.fsModule.access(packageLockPath);
-      
+
       return true;
     } catch (error) {
       // If either file doesn't exist or can't be accessed, return false
@@ -88,45 +135,51 @@ export class NpmManager implements DependencyManager {
     // Step 1: Find and read files
     const packageJsonPath = `${directory}/package.json`;
     const packageLockPath = `${directory}/package-lock.json`;
-    
+
     let packageJsonContent: string;
     let packageLockContent: string;
-    
+
     try {
       packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
-      packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
     } catch (error) {
       throw wrapError(error, `Failed to read project files`) as FileSystemError;
     }
-    
+
     let packageJson: any;
-    let packageLock: PackageLock;
-    
+
     try {
       packageJson = JSON.parse(packageJsonContent);
     } catch (error) {
       throw new MalformedPackageJsonError(error instanceof Error ? error.message : String(error));
     }
-    
+
+    // Try to read package-lock.json only after successfully parsing package.json
+    try {
+      packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
+    } catch (error) {
+      throw wrapError(error, `Failed to read project files`) as FileSystemError;
+    }
+
+    let packageLock: PackageLock;
     try {
       packageLock = JSON.parse(packageLockContent) as PackageLock;
     } catch (error) {
       throw new MalformedPackageLockError(error instanceof Error ? error.message : String(error));
     }
-    
+
     // Step 2: Extract requested dependencies
     const requestedDependencies = {
       ...packageJson.dependencies,
       ...packageJson.devDependencies
     };
-    
+
     // Step 3: Stage 1 - Fetch top-level dependencies only
     const topLevelPackageNames = Object.keys(requestedDependencies)
       .filter(packageName => isValidPackageName(packageName)); // Filter out invalid package names
-    
+
     // Initialize progress tracking for Stage 1
     onProgress?.start(topLevelPackageNames.length, 'Fetching latest versions for top-level dependencies');
-    
+
     // Step 4: Stage 1 - Fetch latest versions for top-level dependencies only
     let topLevelLatestVersions: Map<string, string>;
     try {
@@ -134,27 +187,27 @@ export class NpmManager implements DependencyManager {
     } catch (error) {
       throw wrapError(error, 'Failed to fetch latest package versions') as NetworkError;
     }
-    
+
     // Stop progress tracking for Stage 1
     onProgress?.stop();
-    
+
     // Step 5: Create initial dependency info for top-level dependencies only
     const initialPackagesMap = new Map<string, DependencyInfo>();
-    
+
     for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
       if (packagePath === "") continue; // Skip root package
-      
+
       // Extract package name from path
       const packageName = extractPackageName(packagePath);
-      
+
       // Skip invalid package names and non-top-level dependencies for now
       if (!isValidPackageName(packageName) || !requestedDependencies[packageName]) {
         continue;
       }
-      
+
       // Type assertion for packageInfo with proper interface
       const pkgInfo = packageInfo as PackageLockPackage;
-      
+
       // Create dependency info for top-level packages only
       const dependencyInfo: DependencyInfo = {
         name: packageName,
@@ -164,40 +217,40 @@ export class NpmManager implements DependencyManager {
         dependencies: pkgInfo.dependencies || {},
         peerDependencies: pkgInfo.peerDependencies || {}
       };
-      
+
       initialPackagesMap.set(packageName, dependencyInfo);
     }
-    
+
     // Step 6: Initial analysis to identify packages that need blocker checking
     const potentiallyBlockedPackages: string[] = [];
-    
+
     for (const depName of Object.keys(requestedDependencies)) {
       const dep = initialPackagesMap.get(depName);
       if (!dep || dep.latest === 'unknown') continue;
-      
+
       // Check if this package might need an upgrade
       if (dep.requested && !semver.satisfies(dep.latest, dep.requested)) {
         potentiallyBlockedPackages.push(depName);
       }
     }
-    
+
     // Step 7: Stage 2 - Selective fetching of transitive dependencies
     let selectiveLatestVersions = new Map(topLevelLatestVersions);
-    
+
     if (potentiallyBlockedPackages.length > 0) {
       // Find all transitive packages that could block the identified packages
       const transitivePackagesToFetch = new Set<string>();
-      
+
       for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
         if (packagePath === "") continue; // Skip root package
-        
+
         const packageName = extractPackageName(packagePath);
         if (!isValidPackageName(packageName) || requestedDependencies[packageName]) continue;
-        
+
         // Check if this transitive package depends on any potentially blocked packages
         const pkgInfo = packageInfo as PackageLockPackage;
         const allDeps = { ...pkgInfo.dependencies, ...pkgInfo.peerDependencies };
-        
+
         for (const blockedPackage of potentiallyBlockedPackages) {
           if (allDeps[blockedPackage]) {
             transitivePackagesToFetch.add(packageName);
@@ -205,39 +258,39 @@ export class NpmManager implements DependencyManager {
           }
         }
       }
-      
+
       // Fetch latest versions for selective transitive packages only
       if (transitivePackagesToFetch.size > 0) {
         onProgress?.start(transitivePackagesToFetch.size, 'Fetching latest versions for blocker analysis');
-        
+
         const transitiveLatestVersions = await fetchLatestVersions(
-          Array.from(transitivePackagesToFetch), 
+          Array.from(transitivePackagesToFetch),
           onProgress?.increment
         );
-        
+
         // Merge with top-level versions
         selectiveLatestVersions = new Map([...topLevelLatestVersions, ...transitiveLatestVersions]);
         onProgress?.stop();
       }
     }
-    
+
     // Step 8: Create a Map of ALL packages for blocker detection
     const allPackagesMap = new Map<string, DependencyInfo>();
-    
+
     for (const [packagePath, packageInfo] of Object.entries(packageLock.packages)) {
       if (packagePath === "") continue; // Skip root package
-      
+
       // Extract package name from path
       const packageName = extractPackageName(packagePath);
-      
+
       // Skip invalid package names
       if (!isValidPackageName(packageName)) {
         continue;
       }
-      
+
       // Type assertion for packageInfo with proper interface
       const pkgInfo = packageInfo as PackageLockPackage;
-      
+
       // Create dependency info for ALL packages (needed for blocker detection)
       const dependencyInfo: DependencyInfo = {
         name: packageName,
@@ -247,20 +300,20 @@ export class NpmManager implements DependencyManager {
         dependencies: pkgInfo.dependencies || {},
         peerDependencies: pkgInfo.peerDependencies || {}
       };
-      
+
       allPackagesMap.set(packageName, dependencyInfo);
     }
-    
+
     // Step 9: Populate allDependencies - only for top-level dependencies
     const allDependencies: DependencyInfo[] = [];
-    
+
     for (const depName of Object.keys(requestedDependencies)) {
       const dep = allPackagesMap.get(depName);
       if (dep) {
         allDependencies.push(dep);
       }
     }
-    
+
     // Step 10: Build dependency index for efficient blocker detection - O(n + m)
     const dependencyIndex = new Map<string, Set<string>>();
     const reverseDependencyIndex = new Map<string, Set<string>>();
@@ -270,9 +323,9 @@ export class NpmManager implements DependencyManager {
         ...Object.keys(packageInfo.dependencies || {}),
         ...Object.keys(packageInfo.peerDependencies || {})
       ]);
-      
+
       dependencyIndex.set(packageName, dependencies);
-      
+
       // Build reverse index: who depends on this package
       for (const dep of dependencies) {
         if (!reverseDependencyIndex.has(dep)) {
@@ -286,7 +339,7 @@ export class NpmManager implements DependencyManager {
     const safe: DependencyInfo[] = [];
     const blocked: (DependencyInfo & { blocker: string })[] = [];
     const majorJump: DependencyInfo[] = [];
-    
+
     // Analyze only the top-level dependencies from package.json
     for (const depName of Object.keys(requestedDependencies)) {
       const dep = allPackagesMap.get(depName);
@@ -299,21 +352,22 @@ export class NpmManager implements DependencyManager {
       // Step 11a: Blocker Check using reverse index - O(k) where k = packages depending on dep
       let foundBlockerName: string | null = null;
       const requiredBy = reverseDependencyIndex.get(dep.name) || new Set();
-      
+
       for (const blockerName of requiredBy) {
         const blocker = allPackagesMap.get(blockerName);
         if (!blocker) continue;
-        
+
         const requiredRange = blocker.dependencies[dep.name] ||
-                             blocker.peerDependencies[dep.name];
-        
+          blocker.peerDependencies[dep.name];
+
         if (requiredRange && dep.latest !== "unknown" && !semver.satisfies(dep.latest, requiredRange)) {
           foundBlockerName = blockerName;
           break;
         }
       }
-      
+
       // Step 11b: Classification Logic - Compare Current vs Wanted (like npm outdated)
+
       if (foundBlockerName) {
         // Package is blocked by another package
         blocked.push({
@@ -328,27 +382,27 @@ export class NpmManager implements DependencyManager {
         continue;
       } else {
         // Calculate what version would be installed (Wanted = latest that satisfies range)
-        let wantedVersion = dep.latest;
-        if (!semver.satisfies(dep.latest, dep.requested)) {
-          // Find the latest version that satisfies the range
-          // For now, we'll use the current resolved version as fallback
-          wantedVersion = dep.resolved;
-        }
-        
-        // Compare current (resolved) vs wanted
-        if (semver.gt(wantedVersion, dep.resolved)) {
-          if (semver.major(dep.resolved) < semver.major(wantedVersion)) {
-            // Major version jump required
-            majorJump.push(dep);
+        // Calculate what version would be installed (Wanted = latest that satisfies range)
+        // Check if there is a newer version available
+        if (semver.gt(dep.latest, dep.resolved)) {
+          if (semver.satisfies(dep.latest, dep.requested)) {
+            // The latest version satisfies the range, so it's a "Safe" update (minor/patch)
+            // Unless it's somehow a major bump that is allowed (e.g. range is "*" or ">=1.0.0")
+            if (semver.major(dep.resolved) < semver.major(dep.latest)) {
+              majorJump.push(dep);
+            } else {
+              safe.push(dep);
+            }
           } else {
-            // Safe minor or patch upgrade
-            safe.push(dep);
+            // The latest version does NOT satisfy the range
+            // This is a "Major Jump" (breaking change or user-pinned version needing update)
+            majorJump.push(dep);
           }
         }
-        // If current >= wanted, no upgrade needed
+        // If current >= latest, no upgrade needed
       }
     }
-    
+
     // Return the analysis report
     return {
       safe,
@@ -368,10 +422,10 @@ export class NpmManager implements DependencyManager {
   async previewUpdate(options: UpdateOptions, onProgress?: ProgressCallbacks, targetDirectory: string = process.cwd()): Promise<UpdatePlan> {
     // Get current analysis for the target directory
     const analysis = await this.analyze(targetDirectory, onProgress);
-    
+
     // Convert DependencyInfo to PackageUpdate
     const allUpdates: PackageUpdate[] = [];
-    
+
     // Process safe updates
     for (const dep of analysis.safe) {
       const updateType = this.getUpdateType(dep.resolved, dep.latest);
@@ -383,7 +437,7 @@ export class NpmManager implements DependencyManager {
         category: 'safe'
       });
     }
-    
+
     // Process major updates
     for (const dep of analysis.majorJump) {
       allUpdates.push({
@@ -394,7 +448,7 @@ export class NpmManager implements DependencyManager {
         category: 'major'
       });
     }
-    
+
     // Process blocked updates
     for (const dep of analysis.blocked) {
       const updateType = this.getUpdateType(dep.resolved, dep.latest);
@@ -407,29 +461,29 @@ export class NpmManager implements DependencyManager {
         blocker: dep.blocker
       });
     }
-    
+
     // Apply filters
     let filteredUpdates = allUpdates;
-    
+
     if (options.safeOnly) {
       filteredUpdates = filteredUpdates.filter(u => u.category === 'safe');
     }
-    
+
     if (!options.includeDev) {
       // Filter out dev dependencies (would need package.json access)
       // For now, we'll include all dependencies
     }
-    
+
     // Categorize for the plan
     const categories = {
       safe: filteredUpdates.filter(u => u.category === 'safe'),
       major: filteredUpdates.filter(u => u.category === 'major'),
       blocked: filteredUpdates.filter(u => u.category === 'blocked')
     };
-    
+
     // Estimate time (rough calculation: 30 seconds per package)
     const estimatedTime = filteredUpdates.length * 30;
-    
+
     // Identify risks
     const risks: string[] = [];
     if (categories.major.length > 0) {
@@ -438,7 +492,7 @@ export class NpmManager implements DependencyManager {
     if (categories.blocked.length > 0) {
       risks.push(`${categories.blocked.length} packages are blocked by dependencies`);
     }
-    
+
     return {
       packages: filteredUpdates,
       categories,
@@ -475,11 +529,11 @@ export class NpmManager implements DependencyManager {
       // Get update plan for validation
       const plan = await this.previewUpdate(options, undefined, projectPath);
       const selectedUpdates = plan.packages.filter(p => selectedPackages.includes(p.name));
-      
+
       // Validate selected updates
-      const validationErrors = await UpdateValidator.validateUpdates(selectedUpdates);
+      const validationErrors = await UpdateValidator.validateUpdates(selectedUpdates, projectPath);
       const criticalErrors = validationErrors.filter(e => e.severity === 'error');
-      
+
       if (criticalErrors.length > 0) {
         result.success = false;
         result.errors = criticalErrors.map(e => `${e.package}: ${e.reason}`);
@@ -516,7 +570,7 @@ export class NpmManager implements DependencyManager {
           result.errors?.push(`Pre-update tests failed: ${testResult.output}`);
           return result;
         }
-        
+
         // Check if tests were actually run or skipped
         if (testResult.output.includes('No test script found - skipping pre-update tests')) {
           console.log('ℹ️  No test script found - skipping pre-update tests');
@@ -530,7 +584,7 @@ export class NpmManager implements DependencyManager {
         try {
           console.log(`📦 Updating ${update.name} (${update.currentVersion} → ${update.targetVersion})`);
           await this.updateSinglePackage(update.name, projectPath);
-          
+
           result.updated.push({
             ...update,
             currentVersion: update.currentVersion,
@@ -592,20 +646,20 @@ export class NpmManager implements DependencyManager {
   async createBackup(projectPath: string = process.cwd()): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = `${projectPath}/.depsver-backup-${timestamp}`;
-    
+
     try {
       await this.fsModule.mkdir(backupDir, { recursive: true });
-      
+
       // Backup package.json
       const packageJsonPath = `${projectPath}/package.json`;
       const packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
       await this.fsModule.writeFile(`${backupDir}/package.json`, packageJsonContent);
-      
+
       // Backup package-lock.json
       const packageLockPath = `${projectPath}/package-lock.json`;
       const packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
       await this.fsModule.writeFile(`${backupDir}/package-lock.json`, packageLockContent);
-      
+
       return backupDir;
     } catch (error) {
       throw wrapError(error, 'Failed to create backup') as FileSystemError;
@@ -619,15 +673,114 @@ export class NpmManager implements DependencyManager {
    */
   async restoreBackup(backupPath: string, projectPath: string = process.cwd()): Promise<void> {
     try {
+      // Validate backup before restoration
+      await this.validateBackup(backupPath);
+
       // Restore package.json
       const packageJsonContent = await this.fsModule.readFile(`${backupPath}/package.json`, 'utf-8');
       await this.fsModule.writeFile(`${projectPath}/package.json`, packageJsonContent);
-      
+
       // Restore package-lock.json
       const packageLockContent = await this.fsModule.readFile(`${backupPath}/package-lock.json`, 'utf-8');
       await this.fsModule.writeFile(`${projectPath}/package-lock.json`, packageLockContent);
+
+      // Verify restoration succeeded
+      await this.verifyRestoration(projectPath, backupPath);
+
     } catch (error) {
       throw wrapError(error, 'Failed to restore backup') as FileSystemError;
+    }
+  }
+
+  /**
+   * Validate backup integrity before restoration
+   * @private
+   */
+  private async validateBackup(backupPath: string): Promise<void> {
+    const packageJsonPath = `${backupPath}/package.json`;
+    const packageLockPath = `${backupPath}/package-lock.json`;
+    const metadataPath = `${backupPath}/backup-info.json`;
+
+    // Check required files exist
+    const hasPackageJson = await this.fileExists(packageJsonPath);
+    const hasPackageLock = await this.fileExists(packageLockPath);
+
+    if (!hasPackageJson && !hasPackageLock) {
+      throw new Error('Backup contains neither package.json nor package-lock.json');
+    }
+
+    // Validate JSON syntax if files exist
+    if (hasPackageJson) {
+      try {
+        const content = await this.fsModule.readFile(packageJsonPath, 'utf-8');
+        JSON.parse(content);
+      } catch (error) {
+        throw new Error(`Backup package.json is invalid: ${error}`);
+      }
+    }
+
+    if (hasPackageLock) {
+      try {
+        const content = await this.fsModule.readFile(packageLockPath, 'utf-8');
+        JSON.parse(content);
+      } catch (error) {
+        throw new Error(`Backup package-lock.json is invalid: ${error}`);
+      }
+    }
+
+    // Validate metadata if available
+    if (await this.fileExists(metadataPath)) {
+      try {
+        const metadataContent = await this.fsModule.readFile(metadataPath, 'utf-8');
+        JSON.parse(metadataContent);
+      } catch (error) {
+        throw new Error(`Backup metadata is invalid: ${error}`);
+      }
+    }
+  }
+
+  /**
+   * Verify that restoration was successful
+   * @private
+   */
+  private async verifyRestoration(projectPath: string, backupPath: string): Promise<void> {
+    const packageJsonPath = `${projectPath}/package.json`;
+    const packageLockPath = `${projectPath}/package-lock.json`;
+
+    // Verify files exist after restoration
+    const hasPackageJson = await this.fileExists(packageJsonPath);
+    const hasPackageLock = await this.fileExists(packageLockPath);
+
+    if (!hasPackageJson && !hasPackageLock) {
+      throw new Error('Restoration failed: No package files exist after restore');
+    }
+
+    // Verify JSON syntax
+    try {
+      if (hasPackageJson) {
+        const packageJsonContent = await this.fsModule.readFile(packageJsonPath, 'utf-8');
+        JSON.parse(packageJsonContent);
+      }
+
+      if (hasPackageLock) {
+        const packageLockContent = await this.fsModule.readFile(packageLockPath, 'utf-8');
+        JSON.parse(packageLockContent);
+      }
+    } catch (error) {
+      throw new Error(`Restoration verification failed: ${error}`);
+    }
+  }
+
+  /**
+   * Check if a file exists
+   * @private
+   */
+  private async fileExists(filePath: string): Promise<boolean> {
+    try {
+      await this.fsModule.access(filePath);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -642,25 +795,44 @@ export class NpmManager implements DependencyManager {
       // Check if package exists in registry
       const latestVersions = await fetchLatestVersions([packageName]);
       const latestVersion = latestVersions.get(packageName);
-      
+
       if (!latestVersion) {
         return false;
       }
-      
+
       // Validate version format
       if (!semver.valid(version)) {
         return false;
       }
-      
+
       // Check if version is available (not newer than latest)
       if (semver.gt(version, latestVersion)) {
         return false;
       }
-      
+
       return true;
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Calculate the wanted version - latest version that satisfies the requested range
+   * @private
+   */
+  private async getWantedVersion(latest: string, requested: string): Promise<string> {
+    if (!requested || !semver.validRange(requested)) {
+      return latest;
+    }
+
+    if (semver.satisfies(latest, requested)) {
+      return latest;
+    }
+
+    // For now, return current resolved version as fallback
+    // In a future improvement, we could fetch all available versions
+    // and find the latest that satisfies the range
+    return latest;
   }
 
   /**
@@ -671,7 +843,7 @@ export class NpmManager implements DependencyManager {
     if (!semver.valid(current) || !semver.valid(target)) {
       return 'patch';
     }
-    
+
     if (semver.major(target) > semver.major(current)) {
       return 'major';
     } else if (semver.minor(target) > semver.minor(current)) {
@@ -689,7 +861,7 @@ export class NpmManager implements DependencyManager {
     try {
       await execAsync(`npm install ${packageName}@latest`, { cwd: projectPath });
     } catch (error) {
-      throw new Error(`npm install failed for ${packageName}: ${error}`);
+      throw new UpdateFailedError(packageName, 'unknown', 'latest', error instanceof Error ? error : new Error(String(error)));
     }
   }
 }

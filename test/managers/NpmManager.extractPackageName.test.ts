@@ -19,7 +19,7 @@ describe('extractPackageName and validation', () => {
 
     it('should return empty string for invalid paths', () => {
       expect(extractPackageName('')).toBe('');
-      expect(extractPackageName('some/other/path')).toBe('some/other/path'); // No node_modules in path
+      expect(extractPackageName('some/other/path')).toBe(''); // No node_modules in path
       expect(extractPackageName('node_modules/')).toBe('');
     });
   });
@@ -29,7 +29,7 @@ describe('extractPackageName and validation', () => {
       expect(isValidPackageName('react')).toBe(true);
       expect(isValidPackageName('lodash')).toBe(true);
       expect(isValidPackageName('my-package')).toBe(true);
-      expect(isValidPackageName('my_package')).toBe(true);
+      expect(isValidPackageName('my_package')).toBe(false);
       expect(isValidPackageName('my.package')).toBe(true);
       expect(isValidPackageName('package123')).toBe(true);
     });
