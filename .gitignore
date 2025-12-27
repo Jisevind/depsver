@@ -4,7 +4,7 @@ CODEBASE.md
 test-files/
 local-docs/
 %USERPROFILE%/
-*backup*
+/*backup*
 *github.com*
 .contextignore
 
