@@ -147,21 +147,21 @@ depsver rollback .depsver-backup-2023-12-19T22-00-00-000Z
 
 #### Advanced Features
 
-- **Blocker Resolution**: **NEW** - Intelligent analysis and resolution of dependency conflicts
-- **Smart Update Ordering**: **NEW** - Optimized update sequence to minimize conflicts
-- **Interactive Resolution Workflows**: **NEW** - Step-by-step guidance for complex updates
-- **Comprehensive Reporting**: **NEW** - Detailed reports with risk assessment and recommendations
-- **Multiple Export Formats**: **NEW** - JSON, CSV, and Markdown report generation
-- **Dependency Graph Analysis**: **NEW** - Deep analysis of dependency relationships
+- **Blocker Resolution**: Intelligent analysis and resolution of dependency conflicts
+- **Smart Update Ordering**: Optimized update sequence to minimize conflicts
+- **Interactive Resolution Workflows**: Step-by-step guidance for complex updates
+- **Comprehensive Reporting**: Detailed reports with risk assessment and recommendations
+- **Multiple Export Formats**: JSON, CSV, and Markdown report generation
+- **Dependency Graph Analysis**: Deep analysis of dependency relationships
 
 #### Performance & UX Enhancements
 
-- **Optimized Performance**: **NEW** - Caching, batching, and parallel processing for faster analysis
-- **Memory Management**: **NEW** - Efficient memory usage with monitoring and optimization
-- **Enhanced Progress Tracking**: **NEW** - Real-time progress with performance metrics
-- **Smart Error Handling**: **NEW** - Contextual error messages with actionable solutions
-- **Interactive UI**: **NEW** - Rich terminal interface with smart selections and confirmations
-- **Contextual Help**: **NEW** - Operation-specific help and pro tips
+- **Optimized Performance**: Caching, batching, and parallel processing for faster analysis
+- **Memory Management**: Efficient memory usage with monitoring and optimization
+- **Enhanced Progress Tracking**: Real-time progress with performance metrics
+- **Smart Error Handling**: Contextual error messages with actionable solutions
+- **Interactive UI**: Rich terminal interface with smart selections and confirmations
+- **Contextual Help**: Operation-specific help and pro tips
 
 ### Help
 
