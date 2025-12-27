@@ -180,9 +180,10 @@ program
       };
 
       // Create update options
+      // Check for npm config environment variables as fallback
       const updateOptions: UpdateOptions = {
-        interactive: options.interactive,
-        safeOnly: options.safeOnly,
+        interactive: options.interactive || process.env.npm_config_interactive === 'true',
+        safeOnly: options.safeOnly || process.env.npm_config_safe_only === 'true',
         preview: options.preview,
         includeDev: options.includeDev,
         dryRun: options.dryRun,
@@ -210,7 +211,7 @@ program
 
       // Interactive selection
       let selectedPackages: string[] = [];
-      if (options.interactive) {
+      if (updateOptions.interactive) {
         selectedPackages = await selectPackagesInteractively(plan);
       } else {
         // Select all safe updates by default
