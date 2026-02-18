@@ -205,6 +205,14 @@ export class NpmManager implements DependencyManager {
         continue;
       }
 
+      // Ensure this is a top-level dependency
+      // A top-level dependency path contains exactly one 'node_modules' segment
+      // (e.g. "node_modules/pkg") whereas nested ones have more (e.g. "node_modules/pkg/node_modules/dep")
+      const nodeModulesMatches = packagePath.match(/node_modules/g);
+      if (nodeModulesMatches && nodeModulesMatches.length > 1) {
+        continue;
+      }
+
       // Type assertion for packageInfo with proper interface
       const pkgInfo = packageInfo as PackageLockPackage;
 
@@ -286,6 +294,16 @@ export class NpmManager implements DependencyManager {
       // Skip invalid package names
       if (!isValidPackageName(packageName)) {
         continue;
+      }
+
+      // Ensure that for requested (top-level) dependencies, we only use the top-level path
+      // This prevents nested versions (like node_modules/nested/node_modules/glob) from overwriting
+      // the correct top-level version in our map.
+      if (requestedDependencies[packageName]) {
+        const nodeModulesMatches = packagePath.match(/node_modules/g);
+        if (nodeModulesMatches && nodeModulesMatches.length > 1) {
+          continue;
+        }
       }
 
       // Type assertion for packageInfo with proper interface
