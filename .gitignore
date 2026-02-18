@@ -8,6 +8,8 @@ local-docs/
 *github.com*
 .contextignore
 
+package-lock.json
+
 # Dependencies
 node_modules/
 npm-debug.log*
