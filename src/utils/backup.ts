@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import * as crypto from 'crypto';
 import { BackupInfo } from '../managers/types.js';
+import { getPackageVersion } from './version.js';
 
 /**
  * Backup and restore utilities for package files
@@ -12,29 +13,29 @@ export class BackupManager {
   static async createBackup(): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = `.depsver-backup-${timestamp}`;
-    
+
     try {
       // Create backup directory
       await fs.mkdir(backupDir, { recursive: true });
-      
+
       // Backup package.json
       const packageJsonExists = await this.fileExists('package.json');
       if (packageJsonExists) {
         const packageJsonContent = await fs.readFile('package.json', 'utf-8');
         await fs.writeFile(`${backupDir}/package.json`, packageJsonContent);
       }
-      
+
       // Backup package-lock.json
       const packageLockExists = await this.fileExists('package-lock.json');
       if (packageLockExists) {
         const packageLockContent = await fs.readFile('package-lock.json', 'utf-8');
         await fs.writeFile(`${backupDir}/package-lock.json`, packageLockContent);
       }
-      
+
       // Create backup metadata
       const metadata = await this.generateBackupMetadata(packageJsonExists, packageLockExists);
       await fs.writeFile(`${backupDir}/backup-info.json`, JSON.stringify(metadata, null, 2));
-      
+
       return backupDir;
     } catch (error) {
       throw new Error(`Failed to create backup: ${error}`);
@@ -48,21 +49,21 @@ export class BackupManager {
     try {
       // Validate backup directory
       await this.validateBackup(backupPath);
-      
+
       // Restore package.json if it exists in backup
       const packageJsonBackup = `${backupPath}/package.json`;
       if (await this.fileExists(packageJsonBackup)) {
         const packageJsonContent = await fs.readFile(packageJsonBackup, 'utf-8');
         await fs.writeFile('package.json', packageJsonContent);
       }
-      
+
       // Restore package-lock.json if it exists in backup
       const packageLockBackup = `${backupPath}/package-lock.json`;
       if (await this.fileExists(packageLockBackup)) {
         const packageLockContent = await fs.readFile(packageLockBackup, 'utf-8');
         await fs.writeFile('package-lock.json', packageLockContent);
       }
-      
+
     } catch (error) {
       throw new Error(`Failed to restore backup: ${error}`);
     }
@@ -75,9 +76,9 @@ export class BackupManager {
     try {
       const files = await fs.readdir('.');
       const backupDirs = files.filter(file => file.startsWith('.depsver-backup-'));
-      
+
       const backups: BackupInfo[] = [];
-      
+
       for (const dir of backupDirs) {
         try {
           const metadataPath = `${dir}/backup-info.json`;
@@ -96,10 +97,10 @@ export class BackupManager {
           continue;
         }
       }
-      
+
       // Sort by timestamp (newest first)
       return backups.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-      
+
     } catch (error) {
       throw new Error(`Failed to list backups: ${error}`);
     }
@@ -111,18 +112,18 @@ export class BackupManager {
   static async cleanupBackups(keepCount: number = 5): Promise<void> {
     try {
       const backups = await this.listBackups();
-      
+
       if (backups.length <= keepCount) {
         return;
       }
-      
+
       // Remove oldest backups
       const toRemove = backups.slice(keepCount);
-      
+
       for (const backup of toRemove) {
         await fs.rm(backup.path, { recursive: true, force: true });
       }
-      
+
     } catch (error) {
       throw new Error(`Failed to cleanup backups: ${error}`);
     }
@@ -137,23 +138,23 @@ export class BackupManager {
       if (!(await this.fileExists(backupPath))) {
         return false;
       }
-      
+
       // Check metadata file
       const metadataPath = `${backupPath}/backup-info.json`;
       if (!(await this.fileExists(metadataPath))) {
         return false;
       }
-      
+
       // Validate metadata
       const metadataContent = await fs.readFile(metadataPath, 'utf-8');
       const metadata = JSON.parse(metadataContent);
-      
+
       // Check if at least one package file exists
       const hasPackageJson = await this.fileExists(`${backupPath}/package.json`);
       const hasPackageLock = await this.fileExists(`${backupPath}/package-lock.json`);
-      
+
       return hasPackageJson || hasPackageLock;
-      
+
     } catch (error) {
       return false;
     }
@@ -167,18 +168,18 @@ export class BackupManager {
       if (!(await this.validateBackup(backupPath))) {
         return null;
       }
-      
+
       const metadataPath = `${backupPath}/backup-info.json`;
       const metadataContent = await fs.readFile(metadataPath, 'utf-8');
       const metadata = JSON.parse(metadataContent);
-      
+
       return {
         path: backupPath,
         timestamp: new Date(metadata.timestamp),
         packageJsonHash: metadata.packageJsonHash,
         packageLockHash: metadata.packageLockHash
       };
-      
+
     } catch (error) {
       return null;
     }
@@ -193,7 +194,7 @@ export class BackupManager {
       if (!backupInfo) {
         return true; // Assume changes if backup is invalid
       }
-      
+
       // Check package.json
       if (await this.fileExists('package.json')) {
         const currentPackageJsonHash = await this.calculateFileHash('package.json');
@@ -201,7 +202,7 @@ export class BackupManager {
           return true;
         }
       }
-      
+
       // Check package-lock.json
       if (await this.fileExists('package-lock.json')) {
         const currentPackageLockHash = await this.calculateFileHash('package-lock.json');
@@ -209,9 +210,9 @@ export class BackupManager {
           return true;
         }
       }
-      
+
       return false;
-      
+
     } catch (error) {
       return true; // Assume changes if we can't verify
     }
@@ -226,18 +227,18 @@ export class BackupManager {
   ): Promise<any> {
     const metadata: any = {
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: getPackageVersion(),
       tool: 'depsver'
     };
-    
+
     if (hasPackageJson) {
       metadata.packageJsonHash = await this.calculateFileHash('package.json');
     }
-    
+
     if (hasPackageLock) {
       metadata.packageLockHash = await this.calculateFileHash('package-lock.json');
     }
-    
+
     return metadata;
   }
 
@@ -286,7 +287,7 @@ export class BackupScheduler {
   startAutoCleanup(keepCount: number = 5): void {
     // Stop existing cleanup if running
     this.stopAutoCleanup();
-    
+
     // Run cleanup every 24 hours
     this.cleanupInterval = setInterval(async () => {
       try {

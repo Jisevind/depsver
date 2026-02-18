@@ -1,4 +1,5 @@
 import { DependencyInfo, PackageUpdate } from '../managers/types.js';
+import { getPackageVersion } from './version.js';
 
 /**
  * Performance optimization utilities for dependency operations
@@ -35,7 +36,7 @@ export class PerformanceOptimizer {
     // Batch processing for registry queries
     const batchSize = options.batchSize || 10;
     const batches = this.createBatches(dependencies, batchSize);
-    
+
     const results: DependencyInfo[] = [];
     const performanceMetrics: PerformanceMetrics = {
       cacheHits: 0,
@@ -89,7 +90,7 @@ export class PerformanceOptimizer {
 
     for (const chunk of chunks) {
       const chunkUpdates = this.processChunk(chunk, options);
-      
+
       // Deduplicate and filter
       for (const update of chunkUpdates) {
         const key = `${update.name}-${update.targetVersion}`;
@@ -123,7 +124,7 @@ export class PerformanceOptimizer {
 
     // Create query batches
     const batches = this.createBatches(packages, concurrency);
-    
+
     for (const batch of batches) {
       const batchPromises = batch.map(async (pkg) => {
         await rateLimiter.wait();
@@ -131,7 +132,7 @@ export class PerformanceOptimizer {
       });
 
       const batchResults = await Promise.allSettled(batchPromises);
-      
+
       batchResults.forEach((result, index) => {
         const packageName = batch[index];
         if (packageName) {
@@ -166,12 +167,12 @@ export class PerformanceOptimizer {
       update: (increment = 1) => {
         completed += increment;
         const elapsed = Date.now() - startTime;
-        
+
         metrics.completed = completed;
         metrics.percentage = Math.round((completed / total) * 100);
         metrics.averageTimePerItem = elapsed / completed;
         metrics.itemsPerSecond = completed / (elapsed / 1000);
-        
+
         if (completed > 0) {
           const estimatedTotal = metrics.averageTimePerItem * total;
           metrics.estimatedTimeRemaining = estimatedTotal - elapsed;
@@ -201,29 +202,29 @@ export class PerformanceOptimizer {
           external: current.external,
           arrayBuffers: current.arrayBuffers
         };
-        
+
         samples.push(sample);
-        
+
         // Keep only last 100 samples
         if (samples.length > 100) {
           samples.shift();
         }
-        
+
         return sample;
       },
       getTrend: () => {
         if (samples.length < 2) return 'stable';
-        
+
         const recent = samples.slice(-10);
         const older = samples.slice(-20, -10);
-        
+
         if (recent.length === 0 || older.length === 0) return 'stable';
-        
+
         const recentAvg = recent.reduce((sum, s) => sum + s.heapUsed, 0) / recent.length;
         const olderAvg = older.reduce((sum, s) => sum + s.heapUsed, 0) / older.length;
-        
+
         const change = (recentAvg - olderAvg) / olderAvg;
-        
+
         if (change > 0.1) return 'increasing';
         if (change < -0.1) return 'decreasing';
         return 'stable';
@@ -239,7 +240,7 @@ export class PerformanceOptimizer {
             arrayBuffers: initial.arrayBuffers
           };
         }
-        return samples.reduce((max, sample) => 
+        return samples.reduce((max, sample) =>
           sample.heapUsed > max.heapUsed ? sample : max
         );
       }
@@ -268,12 +269,12 @@ export class PerformanceOptimizer {
   private static getFromCache(key: string): OptimizedResult | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-    
+
     if (Date.now() - entry.timestamp > this.DEFAULT_TTL) {
       this.cache.delete(key);
       return null;
     }
-    
+
     return entry.data;
   }
 
@@ -282,7 +283,7 @@ export class PerformanceOptimizer {
       data,
       timestamp: Date.now()
     });
-    
+
     // Limit cache size
     if (this.cache.size > 50) {
       const oldestKey = this.cache.keys().next().value;
@@ -309,7 +310,7 @@ export class PerformanceOptimizer {
     metrics: PerformanceMetrics
   ): Promise<DependencyInfo[]> {
     const startTime = Date.now();
-    
+
     try {
       // Simulate registry queries (in real implementation, this would query npm)
       const results = await Promise.all(
@@ -323,7 +324,7 @@ export class PerformanceOptimizer {
           };
         })
       );
-      
+
       metrics.totalTime += Date.now() - startTime;
       return results;
     } catch (error) {
@@ -337,31 +338,31 @@ export class PerformanceOptimizer {
     options: UpdateGenerationOptions
   ): PackageUpdate[] {
     const updates: PackageUpdate[] = [];
-    
+
     for (const dep of chunk) {
       if (this.shouldUpdate(dep, options)) {
         updates.push(this.createUpdate(dep));
       }
     }
-    
+
     return updates;
   }
 
   private static shouldUpdate(dep: DependencyInfo, options: UpdateGenerationOptions): boolean {
     if (!dep.latest) return false;
-    
+
     const current = semver.clean(dep.resolved);
     const latest = semver.clean(dep.latest);
-    
+
     if (!current || !latest) return false;
-    
+
     return semver.gt(latest, current);
   }
 
   private static createUpdate(dep: DependencyInfo): PackageUpdate {
     const current = semver.clean(dep.resolved) || dep.resolved;
     const latest = semver.clean(dep.latest) || dep.latest;
-    
+
     return {
       name: dep.name,
       currentVersion: current,
@@ -385,7 +386,7 @@ export class PerformanceOptimizer {
     // Simulate version checking (in real implementation, this would query npm)
     const parts = current.split('.').map(Number);
     const random = Math.random();
-    
+
     if (random < 0.7) {
       // 70% chance of patch update
       return `${parts[0]}.${parts[1]}.${(parts[2] || 0) + 1}`;
@@ -399,11 +400,10 @@ export class PerformanceOptimizer {
   }
 
   private static async queryPackage(packageName: string): Promise<any> {
-    // Simulate package query (in real implementation, this would query npm registry)
     await new Promise(resolve => setTimeout(resolve, Math.random() * 200));
     return {
       name: packageName,
-      version: '1.0.0',
+      version: getPackageVersion(),
       description: `Package ${packageName}`
     };
   }
@@ -423,12 +423,12 @@ class RateLimiter {
   async wait(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequest;
-    
+
     if (timeSinceLastRequest < this.interval) {
       const delay = this.interval - timeSinceLastRequest;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
+
     this.lastRequest = Date.now();
   }
 }
