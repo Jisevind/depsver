@@ -3,12 +3,12 @@
   "version": "1.2.1",
   "description": "A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports",
   "type": "module",
-  "main": "dist/src/cli.js",
+  "main": "dist/cli.js",
   "bin": {
-    "depsver": "./dist/src/cli.js"
+    "depsver": "./dist/cli.js"
   },
   "exports": {
-    ".": "./dist/src/cli.js"
+    ".": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -18,7 +18,7 @@
     "build": "tsc",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
-    "postinstall": "node dist/src/cli.js --help || exit 0",
+    "postinstall": "node dist/cli.js --help || exit 0",
     "test": "vitest",
     "lint": "eslint src/**/*.ts"
   },
