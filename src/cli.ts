@@ -9,6 +9,7 @@ import { NpmManager } from './managers/NpmManager.js';
 import { formatReport, formatActionableInsights, formatActionableInsightsConsole } from './utils/formatter.js';
 import { UpdateOptions } from './managers/types.js';
 import { InteractiveMenu } from './utils/interactive.js';
+import { UXEnhancer } from './utils/ux.js';
 import {
   InvalidProjectError,
   ClipboardError,
@@ -24,7 +25,9 @@ program
   .description('Analyzes project dependencies and generates an AI-ready report')
   .version('1.0.0')
   .option('-o, --output <file>', 'output file for results')
+
   .option('--clip', 'copy results to clipboard')
+  .addHelpText('after', UXEnhancer.getHelpText('analyze'))
   .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
 
@@ -135,7 +138,9 @@ program
   .option('-p, --preview', 'Preview changes without applying')
   .option('--include-dev', 'Include dev dependencies')
   .option('--dry-run', 'Show what would be updated')
+
   .option('--no-tests', 'Skip running tests before/after updates')
+  .addHelpText('after', UXEnhancer.getHelpText('update'))
   .action(async (options) => {
     let progressBar: cliProgress.SingleBar | null = null;
 
@@ -248,6 +253,7 @@ program
   .command('rollback')
   .description('Rollback to a previous backup')
   .argument('<backup-path>', 'path to backup directory')
+  .addHelpText('after', UXEnhancer.getHelpText('rollback'))
   .action(async (backupPath) => {
     try {
       const manager = new NpmManager();

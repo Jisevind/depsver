@@ -21,11 +21,11 @@ export class UXEnhancer {
         this.startSpinner(description);
         memoryMonitor.sample();
       },
-      
+
       update: (increment = 1, current?: string) => {
         const metrics = tracker.update(increment);
         const memory = memoryMonitor.sample();
-        
+
         this.updateProgressDisplay({
           ...metrics,
           current: current || '',
@@ -34,15 +34,15 @@ export class UXEnhancer {
           description
         });
       },
-      
+
       finish: (message?: string) => {
         this.stopSpinner();
         const finalMetrics = tracker.getMetrics();
         const peakMemory = memoryMonitor.getPeak();
-        
+
         this.displayCompletionSummary(finalMetrics, peakMemory, message);
       },
-      
+
       getMetrics: () => tracker.getMetrics()
     };
 
@@ -61,10 +61,10 @@ export class UXEnhancer {
 
     // Group packages by category
     const grouped = this.groupPackagesByCategory(packages);
-    
+
     // Display summary
     this.displaySelectionSummary(grouped);
-    
+
     const selected: string[] = [];
     const deselected: string[] = [];
 
@@ -180,7 +180,7 @@ export class UXEnhancer {
     const { defaultValue = false, timeout, showDetails } = options;
 
     let prompt = `${message} (${defaultValue ? 'Y/n' : 'y/N'})`;
-    
+
     if (showDetails) {
       prompt += '\n📋 Additional details will be shown after confirmation';
     }
@@ -207,7 +207,7 @@ export class UXEnhancer {
       if (normalized === 'no' || normalized === 'n') {
         return false;
       }
-      
+
       console.log('Please enter "yes" or "no" (or "y"/"n")');
     }
   }
@@ -217,11 +217,11 @@ export class UXEnhancer {
    */
   static displayContextualHelp(operation: string): void {
     const helpText = this.getHelpText(operation);
-    
+
     console.log('\n📚 Contextual Help');
     console.log('==================\n');
     console.log(helpText);
-    
+
     console.log('\n💡 Pro tips:');
     this.displayProTips(operation);
   }
@@ -257,8 +257,8 @@ export class UXEnhancer {
       description
     } = metrics;
 
-    const memoryIcon = memoryTrend === 'increasing' ? '📈' : 
-                      memoryTrend === 'decreasing' ? '📉' : '➡️';
+    const memoryIcon = memoryTrend === 'increasing' ? '📈' :
+      memoryTrend === 'decreasing' ? '📉' : '➡️';
 
     const line = [
       `${this.spinnerFrames[0]} ${description}`,
@@ -274,7 +274,7 @@ export class UXEnhancer {
 
   private static displayCompletionSummary(metrics: any, peakMemory: any, message?: string): void {
     console.log('\n✅ Operation completed successfully!\n');
-    
+
     if (message) {
       console.log(`📝 ${message}\n`);
     }
@@ -299,27 +299,27 @@ export class UXEnhancer {
 
   private static displaySelectionSummary(grouped: Record<string, PackageUpdate[]>): void {
     console.log('📋 Selection Summary:');
-    
+
     Object.entries(grouped).forEach(([category, packages]) => {
       const icon = this.getCategoryIcon(category);
       console.log(`   ${icon} ${category}: ${packages.length} packages`);
     });
-    
+
     const total = Object.values(grouped).reduce((sum, pkgs) => sum + pkgs.length, 0);
     console.log(`   📦 Total: ${total} packages\n`);
   }
 
   private static displaySelectionSuggestions(grouped: Record<string, PackageUpdate[]>): void {
     console.log('\n💡 Smart Suggestions:');
-    
+
     if (grouped.safe && grouped.safe.length > 0) {
       console.log(`   ✅ Safe updates: Consider selecting all ${grouped.safe.length} safe updates`);
     }
-    
+
     if (grouped.major && grouped.major.length > 0) {
       console.log(`   ⚠️  Major updates: Review ${grouped.major.length} major updates carefully`);
     }
-    
+
     if (grouped.blocked && grouped.blocked.length > 0) {
       console.log(`   🚫 Blocked updates: ${grouped.blocked.length} packages need dependency resolution`);
     }
@@ -437,7 +437,7 @@ export class UXEnhancer {
     packages.forEach(pkg => {
       const icon = this.getUpdateTypeIcon(pkg.updateType);
       console.log(`   ${icon} ${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion}`);
-      
+
       if (showDetails && pkg.changelog) {
         console.log(`      📝 ${pkg.changelog}`);
       }
@@ -449,7 +449,7 @@ export class UXEnhancer {
     packages.forEach(pkg => {
       console.log(`   ❌ ${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion}`);
     });
-    
+
     if (errors.length > 0) {
       console.log('\n🚨 Error Details:');
       errors.forEach(error => console.log(`   • ${error}`));
@@ -468,22 +468,22 @@ export class UXEnhancer {
 
   private static displayNextSteps(result: UpdateResult): void {
     console.log('\n🎯 Recommended Next Steps:');
-    
+
     if (result.failed.length > 0) {
       console.log('   1. Review and fix failed updates');
       console.log('   2. Consider running with --verbose for detailed error information');
     }
-    
+
     if (result.blocked.length > 0) {
       console.log('   3. Resolve dependency blockers for blocked packages');
       console.log('   4. Use "depsver update --interactive" for guided resolution');
     }
-    
+
     if (result.success && result.updated.length > 0) {
       console.log('   5. Run your test suite to verify updates');
       console.log('   6. Monitor application performance');
     }
-    
+
     if (result.backupPath) {
       console.log(`   7. Backup available at: ${result.backupPath}`);
     }
@@ -537,7 +537,7 @@ export class UXEnhancer {
       this.getUserInput('> ').then(input => {
         clearTimeout(timer);
         const normalized = input.toLowerCase().trim();
-        
+
         if (normalized === '' || normalized === 'yes' || normalized === 'y') {
           resolve(true);
         } else if (normalized === 'no' || normalized === 'n') {
@@ -560,7 +560,7 @@ export class UXEnhancer {
       let input = '';
       stdin.on('data', (key: string | Buffer) => {
         const keyStr = Buffer.isBuffer(key) ? key.toString('utf8') : key;
-        
+
         if (keyStr === '\r' || keyStr === '\n') {
           stdin.setRawMode(false);
           stdin.pause();
@@ -584,7 +584,7 @@ export class UXEnhancer {
     });
   }
 
-  private static getHelpText(operation: string): string {
+  public static getHelpText(operation: string): string {
     const helpTexts: Record<string, string> = {
       update: `
 The update command allows you to safely update project dependencies.
