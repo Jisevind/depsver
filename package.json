@@ -1,18 +1,26 @@
 {
   "name": "depsver",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports",
-  "main": "dist/cli.js",
-  "bin": {
-    "depsver": "dist/cli.js"
-  },
   "type": "module",
+  "main": "dist/src/cli.js",
+  "bin": {
+    "depsver": "./dist/src/cli.js"
+  },
+  "exports": {
+    ".": "./dist/src/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "node --loader ts-node/esm src/cli.ts",
     "build": "tsc",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
+    "postinstall": "node dist/src/cli.js --help || exit 0",
     "test": "vitest",
-    "lint": "eslint src/**/*.ts",
-    "prepare": "npm run build"
+    "lint": "eslint src/**/*.ts"
   },
   "keywords": [
     "dependencies",
@@ -21,11 +29,14 @@
     "cli",
     "typescript"
   ],
-  "author": "",
+  "author": "Johan Isevind",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Jisevind/depsver.git"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "cli-progress": "^3.12.0",
@@ -36,19 +47,16 @@
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/github": "^12.0.2",
-    "@semantic-release/npm": "^13.1.2",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.4",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/cli-progress": "^3.11.0",
     "@types/node": "^25.0.3",
     "@types/semver": "^7.5.0",
-    "eslint": "^9.39.2",
-    "semantic-release": "^25.0.2",
+    "eslint": "^10.0.0",
+    "semantic-release": "^25.0.3",
     "ts-node": "^10.9.0",
     "typescript": "~5.9.0",
     "vitest": "^4.0.15"
-  },
-  "engines": {
-    "node": ">=22.14.0"
   }
 }
