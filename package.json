@@ -1,6 +1,6 @@
 {
   "name": "depsver",
-  "version": "1.2.1",
+  "version": "1.3.1",
   "description": "A TypeScript CLI tool for analyzing project dependencies and generating AI-ready reports",
   "type": "module",
   "main": "dist/cli.js",
