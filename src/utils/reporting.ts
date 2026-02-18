@@ -1,5 +1,6 @@
 import { PackageUpdate, UpdateResult, BlockerAnalysis, UpdateOrder } from '../managers/types.js';
 import { BlockerResolver, ResolutionStep } from './blocker.js';
+import { getPackageVersion } from './version.js';
 
 /**
  * Enhanced reporting utilities for dependency updates
@@ -185,22 +186,22 @@ export class EnhancedReporter {
       info += `- **Target Version**: ${pkg.targetVersion}\n`;
       info += `- **Update Type**: ${pkg.updateType}\n`;
       info += `- **Category**: ${pkg.category}\n`;
-      
+
       if (pkg.blocker) {
         info += `- **Blocker**: ${pkg.blocker}\n`;
       }
-      
+
       if (pkg.changelog) {
         info += `- **Changelog**: ${pkg.changelog}\n`;
       }
-      
+
       if (pkg.securityNotes && pkg.securityNotes.length > 0) {
         info += '- **Security Notes**:\n';
         pkg.securityNotes.forEach((note: string) => {
           info += `  - ${note}\n`;
         });
       }
-      
+
       info += '\n';
     }
 
@@ -310,7 +311,7 @@ export class EnhancedReporter {
 
     // General recommendations
     recommendations += '### 🎯 Immediate Actions\n';
-    
+
     const safeCount = plan.categories?.safe?.length || 0;
     if (safeCount > 0) {
       recommendations += '1. **Apply safe updates first** - These have minimal risk of breaking changes\n';
@@ -329,12 +330,12 @@ export class EnhancedReporter {
     // Blocker-specific recommendations
     if (blockerAnalysis && blockerAnalysis.totalBlocked > 0) {
       recommendations += '\n### 🔧 Blocker Resolution\n';
-      
+
       const automatedResolvable = blockerAnalysis.blockers.filter((b: any) => b.automatedResolvable).length;
       if (automatedResolvable > 0) {
         recommendations += `- ${automatedResolvable} blockers can be resolved automatically\n`;
       }
-      
+
       const manualRequired = blockerAnalysis.blockers.filter((b: any) => !b.automatedResolvable).length;
       if (manualRequired > 0) {
         recommendations += `- ${manualRequired} blockers require manual intervention\n`;
@@ -344,7 +345,7 @@ export class EnhancedReporter {
     // Post-update recommendations
     if (result) {
       recommendations += '\n### 📋 Post-Update Actions\n';
-      
+
       if (result.success) {
         recommendations += '1. **Run full test suite** to ensure no functionality is broken\n';
         recommendations += '2. **Update documentation** if any APIs have changed\n';
@@ -377,8 +378,9 @@ export class EnhancedReporter {
   ): string {
     const report = {
       metadata: {
+
         generatedAt: new Date().toISOString(),
-        version: '1.0.0',
+        version: getPackageVersion(),
         tool: 'depsver'
       },
       plan,

@@ -10,6 +10,7 @@ import { formatReport, formatActionableInsights, formatActionableInsightsConsole
 import { UpdateOptions } from './managers/types.js';
 import { InteractiveMenu } from './utils/interactive.js';
 import { UXEnhancer } from './utils/ux.js';
+import { getPackageVersion } from './utils/version.js';
 import {
   InvalidProjectError,
   ClipboardError,
@@ -23,7 +24,7 @@ const program = new Command();
 program
   .name('depsver')
   .description('Analyzes project dependencies and generates an AI-ready report')
-  .version('1.0.0')
+  .version(getPackageVersion())
   .option('-o, --output <file>', 'output file for results')
 
   .option('--clip', 'copy results to clipboard')
