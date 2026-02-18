@@ -386,8 +386,8 @@ export class NpmManager implements DependencyManager {
         // Check if there is a newer version available
         if (semver.gt(dep.latest, dep.resolved)) {
           if (semver.satisfies(dep.latest, dep.requested)) {
-            // The latest version satisfies the range, so it's a "Safe" update (minor/patch)
-            // Unless it's somehow a major bump that is allowed (e.g. range is "*" or ">=1.0.0")
+            // The latest version satisfies the range
+            // Check if it's a major version jump (rare within range, but possible with * or >=)
             if (semver.major(dep.resolved) < semver.major(dep.latest)) {
               majorJump.push(dep);
             } else {
@@ -395,8 +395,15 @@ export class NpmManager implements DependencyManager {
             }
           } else {
             // The latest version does NOT satisfy the range
-            // This is a "Major Jump" (breaking change or user-pinned version needing update)
-            majorJump.push(dep);
+            // Check true severity of the update
+            const diff = semver.diff(dep.resolved, dep.latest);
+
+            if (diff === 'major' || diff === 'premajor') {
+              majorJump.push(dep);
+            } else {
+              // It's a safe update (minor/patch) even if it requires package.json change
+              safe.push(dep);
+            }
           }
         }
         // If current >= latest, no upgrade needed
@@ -440,11 +447,12 @@ export class NpmManager implements DependencyManager {
 
     // Process major updates
     for (const dep of analysis.majorJump) {
+      const updateType = this.getUpdateType(dep.resolved, dep.latest);
       allUpdates.push({
         name: dep.name,
         currentVersion: dep.resolved,
         targetVersion: dep.latest,
-        updateType: 'major',
+        updateType,
         category: 'major'
       });
     }
